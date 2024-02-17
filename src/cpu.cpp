@@ -148,9 +148,9 @@ name##_ZPY: {            \
 u32 Interpreter::RunBlock(u32 max_cycles) {
 
     u32 current_cycles = 0;
-    u16 operand = 0;
+    u16 operand;
     u8 value = 0;
-    u8 inst_idx = 0;
+    u8 inst_idx;
 
 /*
 BRK         ORA (d,x)   STP         SLO (d,x)   NOP d       ORA d       ASL d       SLO d
@@ -222,66 +222,66 @@ SED         SBC a,y     NOP         ISC a,y     NOP a,x     SBC a,x     INC a,x 
     };
 
     // Start the interpreter
-    FETCH_NEXT;
+    FETCH_NEXT
     goto* inst_lut[inst_idx];
 
     // Control OPCODES
-    DECODE_IMP(NOP, {});
-    DECODE_ZPA(BIT, { cpu.SetNZ(value); cpu.SetFlag<CPU::Flags::V>((value & (1 << 6)) != 0); });
-    DECODE_ABS(BIT, { cpu.SetNZ(value); cpu.SetFlag<CPU::Flags::V>((value & (1 << 6)) != 0); });
-    DECODE_IMM(BRK, { cpu.SetFlag<CPU::Flags::I>(true); goto END; });
+    DECODE_IMP(NOP, {})
+    DECODE_ZPA(BIT, { cpu.SetNZ(value); cpu.SetFlag<CPU::Flags::V>((value & (1 << 6)) != 0); })
+    DECODE_ABS(BIT, { cpu.SetNZ(value); cpu.SetFlag<CPU::Flags::V>((value & (1 << 6)) != 0); })
+    DECODE_IMM(BRK, { cpu.SetFlag<CPU::Flags::I>(true); goto END; })
     DECODE_IMP(RTS, {
         u16 addr = cpu.PopStack();
         addr |= cpu.PopStack() << 8;
         cpu.PC = addr;
-    });
+    })
     DECODE_IMP(RTI, {
         cpu.P = cpu.PopStack();
         u16 addr = cpu.PopStack();
         addr |= cpu.PopStack() << 8;
         cpu.PC = addr;
-    });
+    })
 
-    DECODE_IMP(TAX, { cpu.X = cpu.A; cpu.SetNZ(cpu.A); });
-    DECODE_IMP(TXA, { cpu.A = cpu.X; cpu.SetNZ(cpu.A); });
-    DECODE_IMP(TAY, { cpu.Y = cpu.A; cpu.SetNZ(cpu.A); });
-    DECODE_IMP(TYA, { cpu.A = cpu.Y; cpu.SetNZ(cpu.A); });
-    DECODE_IMP(TSX, { cpu.X = cpu.SP; cpu.SetNZ(cpu.X); });
-    DECODE_IMP(TXS, { cpu.SP = cpu.X; });
-    DECODE_IMP(PHP, { cpu.PushStack(cpu.P); });
-    DECODE_IMP(PLP, { cpu.P = cpu.PopStack(); });
-    DECODE_IMP(PHA, { cpu.PushStack(cpu.A); });
-    DECODE_IMP(PLA, { cpu.A = cpu.PopStack(); });
+    DECODE_IMP(TAX, { cpu.X = cpu.A; cpu.SetNZ(cpu.A); })
+    DECODE_IMP(TXA, { cpu.A = cpu.X; cpu.SetNZ(cpu.A); })
+    DECODE_IMP(TAY, { cpu.Y = cpu.A; cpu.SetNZ(cpu.A); })
+    DECODE_IMP(TYA, { cpu.A = cpu.Y; cpu.SetNZ(cpu.A); })
+    DECODE_IMP(TSX, { cpu.X = cpu.SP; cpu.SetNZ(cpu.X); })
+    DECODE_IMP(TXS, { cpu.SP = cpu.X; })
+    DECODE_IMP(PHP, { cpu.PushStack(cpu.P); })
+    DECODE_IMP(PLP, { cpu.P = cpu.PopStack(); })
+    DECODE_IMP(PHA, { cpu.PushStack(cpu.A); })
+    DECODE_IMP(PLA, { cpu.A = cpu.PopStack(); })
 
-    DECODE_IMP(CLC, { cpu.SetFlag<CPU::Flags::C>(false); });
-    DECODE_IMP(SEC, { cpu.SetFlag<CPU::Flags::C>(true); });
-    DECODE_IMP(CLI, { cpu.SetFlag<CPU::Flags::I>(false); });
-    DECODE_IMP(SEI, { cpu.SetFlag<CPU::Flags::I>(true); });
-    DECODE_IMP(CLD, { cpu.SetFlag<CPU::Flags::D>(false); });
-    DECODE_IMP(SED, { cpu.SetFlag<CPU::Flags::D>(true); });
-    DECODE_IMP(CLV, { cpu.SetFlag<CPU::Flags::V>(false); });
+    DECODE_IMP(CLC, { cpu.SetFlag<CPU::Flags::C>(false); })
+    DECODE_IMP(SEC, { cpu.SetFlag<CPU::Flags::C>(true); })
+    DECODE_IMP(CLI, { cpu.SetFlag<CPU::Flags::I>(false); })
+    DECODE_IMP(SEI, { cpu.SetFlag<CPU::Flags::I>(true); })
+    DECODE_IMP(CLD, { cpu.SetFlag<CPU::Flags::D>(false); })
+    DECODE_IMP(SED, { cpu.SetFlag<CPU::Flags::D>(true); })
+    DECODE_IMP(CLV, { cpu.SetFlag<CPU::Flags::V>(false); })
 
-    DECODE_REL(BEQ, ((cpu.P & CPU::Flags::Z) == 0));
-    DECODE_REL(BNE, ((cpu.P & CPU::Flags::Z) != 0));
-    DECODE_REL(BCC, ((cpu.P & CPU::Flags::C) == 0));
-    DECODE_REL(BCS, ((cpu.P & CPU::Flags::C) != 0));
-    DECODE_REL(BPL, ((cpu.P & CPU::Flags::N) == 0));
-    DECODE_REL(BMI, ((cpu.P & CPU::Flags::N) != 0));
-    DECODE_REL(BVC, ((cpu.P & CPU::Flags::V) == 0));
-    DECODE_REL(BVS, ((cpu.P & CPU::Flags::V) != 0));
+    DECODE_REL(BEQ, ((cpu.P & CPU::Flags::Z) == 0))
+    DECODE_REL(BNE, ((cpu.P & CPU::Flags::Z) != 0))
+    DECODE_REL(BCC, ((cpu.P & CPU::Flags::C) == 0))
+    DECODE_REL(BCS, ((cpu.P & CPU::Flags::C) != 0))
+    DECODE_REL(BPL, ((cpu.P & CPU::Flags::N) == 0))
+    DECODE_REL(BMI, ((cpu.P & CPU::Flags::N) != 0))
+    DECODE_REL(BVC, ((cpu.P & CPU::Flags::V) == 0))
+    DECODE_REL(BVS, ((cpu.P & CPU::Flags::V) != 0))
     DECODE_ABS(JSR, {
         cpu.PushStack(cpu.PC >> 8 );
         cpu.PushStack(cpu.PC & 0xff );
         cpu.PC = operand;
-    });
+    })
     DECODE_ABS(JMP, {
         cpu.PC = operand;
-    });
+    })
     JMP_IND: {
         operand = bus.Read16(cpu.PC);
         operand = bus.Read16(operand);
         cpu.PC = operand;
-    };
+    }
 
     // ALU OPCODES
 #define ALU_OP(name, code) \
@@ -292,27 +292,27 @@ SED         SBC a,y     NOP         ISC a,y     NOP a,x     SBC a,x     INC a,x 
     DECODE_INX(name, code) \
     DECODE_INY(name, code, PAGE_CROSS_CHECK(Y)) \
     DECODE_ZPA(name, code) \
-    DECODE_ZPX(name, code);
+    DECODE_ZPX(name, code)
 
     ALU_OP(ORA, {
         cpu.A |= value;
         cpu.SetNZ(value);
-    });
+    })
     ALU_OP(AND, {
         cpu.A &= value;
         cpu.SetNZ(value);
-    });
+    })
     ALU_OP(EOR, {
         cpu.A ^= value;
         cpu.SetNZ(value);
-    });
+    })
     ALU_OP(ADC, {
         u16 result = (u16)cpu.A + (u16)value + (cpu.P & CPU::Flags::C) != 0;
         cpu.SetFlag<CPU::Flags::V>((~(cpu.A ^ value) & (cpu.A ^ result) & 0x80) != 0);
         cpu.SetFlag<CPU::Flags::C>(result > 0xFF);
         cpu.SetNZ(result);
         cpu.A = (u8)result;
-    });
+    })
 
     // sta is different from the other ALU ops
 #define STA_OP(code) \
@@ -322,26 +322,26 @@ SED         SBC a,y     NOP         ISC a,y     NOP a,x     SBC a,x     INC a,x 
     DECODE_INX(STA, code) \
     DECODE_INY(STA, code, 0) \
     DECODE_ZPA(STA, code) \
-    DECODE_ZPX(STA, code);
+    DECODE_ZPX(STA, code)
     STA_OP({
         bus.Write8(value, cpu.A);
-    });
+    })
 
 #define STX_OP(code) \
     DECODE_ZPA(STX, code) \
     DECODE_ZPY(STX, code) \
-    DECODE_ABS(STX, code);
+    DECODE_ABS(STX, code)
     STX_OP({
        bus.Write8(value, cpu.X);
-    });
+    })
 
 #define STY_OP(code) \
     DECODE_ZPA(STY, code) \
     DECODE_ZPX(STY, code) \
-    DECODE_ABS(STY, code);
+    DECODE_ABS(STY, code)
     STY_OP({
         bus.Write8(value, cpu.Y);
-    });
+    })
 
     ALU_OP(LDA, {
         cpu.A = bus.Read8(value);
@@ -357,33 +357,33 @@ SED         SBC a,y     NOP         ISC a,y     NOP a,x     SBC a,x     INC a,x 
         cpu.SetFlag<CPU::Flags::V>((~(cpu.A ^ value) & (cpu.A ^ result) & 0x80) != 0);
         cpu.SetNZ(result);
         cpu.A = (u8)result;
-    });
+    })
 #define LDX_OP(code) \
     DECODE_IMM(LDX, code) \
     DECODE_ABS(LDX, code) \
     DECODE_ABY(LDX, code, PAGE_CROSS_CHECK(Y)) \
     DECODE_ZPA(LDX, code) \
-    DECODE_ZPY(LDX, code);
+    DECODE_ZPY(LDX, code)
     LDX_OP({
        cpu.X = bus.Read8(value);
        cpu.SetNZ(value);
-    });
+    })
 
 #define LDY_OP(code) \
     DECODE_IMM(LDY, code) \
     DECODE_ABS(LDY, code) \
     DECODE_ABX(LDY, code, PAGE_CROSS_CHECK(X)) \
     DECODE_ZPA(LDY, code) \
-    DECODE_ZPX(LDY, code);
+    DECODE_ZPX(LDY, code)
     LDY_OP({
        cpu.Y = bus.Read8(value);
        cpu.SetNZ(value);
-    });
+    })
 
 #define CPR_OP(name, code) \
     DECODE_IMM(name, code) \
     DECODE_ABS(name, code) \
-    DECODE_ZPA(name, code);
+    DECODE_ZPA(name, code)
     CPR_OP(CPX, {
         cpu.P = (cpu.P & ~CPU::Flags::C) | (cpu.X >= value);
         cpu.SetNZ(value);
@@ -399,80 +399,79 @@ SED         SBC a,y     NOP         ISC a,y     NOP a,x     SBC a,x     INC a,x 
 DECODE_ABS(name, code) \
 DECODE_ABX(name, code, 0) \
 DECODE_ZPA(name, code) \
-DECODE_ZPX(name, code);
+DECODE_ZPX(name, code)
     RMW_OP(ASL, {
         u16 result = (u16)value << 1;
         bus.Write8(operand, (u8)result);
         cpu.SetFlag<CPU::Flags::C>(result > 0xFF);
         cpu.SetNZ(result);
-    });
+    })
     DECODE_IMP(ASL, {
         u16 result = (u16)cpu.A << 1;
         cpu.A = (u8)result;
         cpu.SetFlag<CPU::Flags::C>(result > 0xFF);
         cpu.SetNZ(result);
-    });
+    })
     RMW_OP(ROL, {
         u16 result = ((u16)value << 1) | (cpu.P & CPU::Flags::C);
         bus.Write8(operand, (u8)result);
         cpu.SetFlag<CPU::Flags::C>(result > 0xFF);
         cpu.SetNZ(result);
-    });
+    })
     DECODE_IMP(ROL, {
         u16 result = ((u16)cpu.A << 1) | (cpu.P & CPU::Flags::C);
         cpu.A = (u8)result;
         cpu.SetFlag<CPU::Flags::C>(result > 0xFF);
         cpu.SetNZ(result);
-    });
+    })
     RMW_OP(LSR, {
-        u8 result = (value >> 1);
+        u8 result = value >> 1;
         bus.Write8(operand, (u8)result);
         cpu.SetFlag<CPU::Flags::C>((value & 1) == 1);
         cpu.SetNZ(result);
-    });
+    })
     DECODE_IMP(LSR, {
-        u8 result = (value >> 1);
-        bus.Write8(operand, (u8)result);
+        u8 result = cpu.A >> 1;
+        cpu.A = (u8)result;
         cpu.SetFlag<CPU::Flags::C>((value & 1) == 1);
         cpu.SetNZ(result);
-    });
+    })
     RMW_OP(ROR, {
         u8 result = (value >> 1) | ((cpu.P & CPU::Flags::C) << 7);
         bus.Write8(operand, (u8)result);
         cpu.SetFlag<CPU::Flags::C>((value & 1) == 1);
         cpu.SetNZ(result);
-    });
+    })
     DECODE_IMP(ROR, {
-        u8 result = (value >> 1) | ((cpu.P & CPU::Flags::C) << 7);
-        bus.Write8(operand, (u8)result);
+        u8 result = (cpu.A >> 1) | ((cpu.P & CPU::Flags::C) << 7);
+        cpu.A = (u8)result;
         cpu.SetFlag<CPU::Flags::C>((value & 1) == 1);
         cpu.SetNZ(result);
-    });
+    })
     RMW_OP(DEC, {
         bus.Write8(operand, (u8)--value);
         cpu.SetNZ(value);
-    });
+    })
     DECODE_IMP(DEX, {
         cpu.X--;
         cpu.SetNZ(cpu.X);
-    });
+    })
     DECODE_IMP(DEY, {
         cpu.Y--;
         cpu.SetNZ(cpu.Y);
-    });
+    })
     RMW_OP(INC, {
         bus.Write8(operand, (u8)++value);
         cpu.SetNZ(value);
-    });
+    })
     DECODE_IMP(INX, {
         cpu.X++;
         cpu.SetNZ(cpu.X);
-    });
+    })
     DECODE_IMP(INY, {
         cpu.Y++;
         cpu.SetNZ(cpu.Y);
-    });
-
+    })
 
     // Unimplemented
     ANC_IMM:
@@ -488,20 +487,18 @@ DECODE_ZPX(name, code);
     SHX_ABY:
     TAS_ABY:
     SAX_ZPY:
-    LAX_ZPY:
-    {
-        GOTO_NEXT(0);
-    };
-    ALU_OP(SLO, {});
-    ALU_OP(SRE, {});
-    ALU_OP(LAX, {});
-    ALU_OP(SAX, {});
-    ALU_OP(RRA, {});
-    ALU_OP(DCP, {});
-    ALU_OP(ISC, {});
-    ALU_OP(RLA, {});
-    ALU_OP(NOP, {});
-
+    LAX_ZPY: {
+        GOTO_NEXT(0)
+    }
+    ALU_OP(SLO, {})
+    ALU_OP(SRE, {})
+    ALU_OP(LAX, {})
+    ALU_OP(SAX, {})
+    ALU_OP(RRA, {})
+    ALU_OP(DCP, {})
+    ALU_OP(ISC, {})
+    ALU_OP(RLA, {})
+    ALU_OP(NOP, {})
 END:
     return current_cycles;
 }
