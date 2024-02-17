@@ -5,7 +5,8 @@
 
 void CPU::Reset() {
     // https://www.nesdev.org/wiki/CPU_power_up_state
-    PC = bus.Read16(0xfffc);
+//    PC = bus.Read16(0xfffc);
+    PC = 0xc000;
     SP = 0xfd;
     P = 0x34;
     A = 0;
@@ -60,7 +61,7 @@ static std::array<u8, 256> cycle_lut = {
         current_cycles += cycle_lut[inst_idx] + page_crossed;      \
         if (current_cycles >= max_cycles)                          \
             goto END;                                              \
-        FETCH_NEXT;                                                \
+        FETCH_NEXT                                                 \
         goto* inst_lut[inst_idx];                                  \
     }
 
@@ -73,7 +74,7 @@ name##_REL: {                                                      \
             cpu.PC += (s8) operand;                                \
             penalty = 1 + ((oldPC & 0xff00) == (cpu.PC & 0xff00)); \
         }                                                          \
-        GOTO_NEXT(penalty);                                        \
+        GOTO_NEXT(penalty)                                         \
     }
 #define DECODE_IMP(name, code)                   \
 name##_IMP: {                                    \
@@ -131,22 +132,22 @@ name##_INY: {                                    \
 name##_ZPA: {                                    \
         operand = bus.Read8(cpu.PC++);           \
         OP(operand)                              \
-        code;                                    \
-        GOTO_NEXT(0);                            \
+        code                                     \
+        GOTO_NEXT(0)                             \
     }
 #define DECODE_ZPX(name, OP, code)               \
 name##_ZPX: {                                    \
         operand = bus.Read8(cpu.PC++) + cpu.X;   \
         OP(operand)                              \
-        code;                                    \
-        GOTO_NEXT(0);                            \
+        code                                     \
+        GOTO_NEXT(0)                             \
     }
 #define DECODE_ZPY(name, OP, code)               \
 name##_ZPY: {                                    \
         operand = bus.Read8(cpu.PC++) + cpu.Y;   \
         OP(operand)                              \
-        code;                                    \
-        GOTO_NEXT(0);                            \
+        code                                     \
+        GOTO_NEXT(0)                             \
     }
 
 u32 Interpreter::RunBlock(u32 max_cycles) {
@@ -265,8 +266,8 @@ SED         SBC a,y     NOP         ISC a,y     NOP a,x     SBC a,x     INC a,x 
     DECODE_IMP(SED, { cpu.SetFlag<CPU::Flags::D>(true); })
     DECODE_IMP(CLV, { cpu.SetFlag<CPU::Flags::V>(false); })
 
-    DECODE_REL(BEQ, ((cpu.P & CPU::Flags::Z) == 0))
-    DECODE_REL(BNE, ((cpu.P & CPU::Flags::Z) != 0))
+    DECODE_REL(BNE, ((cpu.P & CPU::Flags::Z) == 0))
+    DECODE_REL(BEQ, ((cpu.P & CPU::Flags::Z) != 0))
     DECODE_REL(BCC, ((cpu.P & CPU::Flags::C) == 0))
     DECODE_REL(BCS, ((cpu.P & CPU::Flags::C) != 0))
     DECODE_REL(BPL, ((cpu.P & CPU::Flags::N) == 0))

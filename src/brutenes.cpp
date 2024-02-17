@@ -26,8 +26,11 @@ std::unique_ptr<BruteNES> BruteNES::Init(std::vector<u8>&& filedata) {
 void BruteNES::RunFrame() {
     // run from the start of vblank until the start of the next vblank
     while (true) {
-        auto& next_interrupt = timing.queue.top();
-        cpu.RunFor(timing.CPUCyclesTillInterrupt());
+//        auto& next_interrupt = timing.queue.top();
+        u32 count = cpu.RunFor(timing.CPUCyclesTillInterrupt());
+        timing.AddCPUCycles(count);
+//        u64 count = cpu.RunFor((u64)-1);
+
         break;
     }
 }

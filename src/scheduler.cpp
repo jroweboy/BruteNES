@@ -13,10 +13,10 @@ void Scheduler::ScheduleInterrupt(s32 cycles_from_now, InterruptSource source, b
 
 s64 Scheduler::CPUCyclesTillInterrupt() {
     auto& top = queue.top();
-    return ((s64)top.cycles - (s64)cycle_count) / NTSC_CPU_CLOCK;
+    return ((s64)top.cycles - (s64)cycle_count) / NTSC_CLOCK_DIVIDER;
 }
 
-void Scheduler::AddCPUCycles(s32 cycles) {
+void Scheduler::AddCPUCycles(s64 cycles) {
     auto i = queue.top();
     auto next_cycle_count = (cycle_count + cycles * NTSC_CLOCK_DIVIDER);
     while (i.cycles < next_cycle_count) {

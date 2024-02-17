@@ -75,6 +75,7 @@ add_executable(${PROJECT_NAME}
     inc/common.h
     inc/cpu.h
     inc/ines.h
+    inc/ppu.h
     inc/scheduler.h
     inc/virtmem.h
 
@@ -83,6 +84,7 @@ add_executable(${PROJECT_NAME}
     src/cpu.cpp
     src/ines.cpp
     src/main.cpp
+    src/ppu.cpp
     src/scheduler.cpp
     src/virtmem.cpp
 )
