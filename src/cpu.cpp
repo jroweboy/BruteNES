@@ -46,110 +46,114 @@ static std::array<u8, 256> cycle_lut = {
 };
 
 // I'm so sorry.
+#define NOOP(inner) ;
+#define NOOP8(inner) u8 value = inner;
+#define NOOP16(inner) u16 value = inner;
+#define READ8(inner) u8 value = bus.Read8(inner);
 
-#define FETCH_NEXT { \
-        inst_idx = bus.Read8(cpu.PC++);  \
+#define FETCH_NEXT {                                               \
+        inst_idx = bus.Read8(cpu.PC++);                            \
     }
 #define PAGE_CROSS_CHECK(reg) (((operand + cpu.reg) & 0xff) < cpu.reg)
 
-#define GOTO_NEXT(page_crossed) {                             \
-        current_cycles += cycle_lut[inst_idx] + page_crossed;    \
-        if (current_cycles >= max_cycles)       \
-            goto END;                           \
-        FETCH_NEXT;                             \
-        goto* inst_lut[inst_idx];               \
+#define GOTO_NEXT(page_crossed) {                                  \
+        current_cycles += cycle_lut[inst_idx] + page_crossed;      \
+        if (current_cycles >= max_cycles)                          \
+            goto END;                                              \
+        FETCH_NEXT;                                                \
+        goto* inst_lut[inst_idx];                                  \
     }
 
-#define DECODE_REL(name, condition) \
-name##_REL: {                       \
-        operand = bus.Read8(cpu.PC++); \
-        u8 penalty = 0;     \
-        if (condition) {            \
-            u16 oldPC = cpu.PC;      \
-            cpu.PC += (s8) operand; \
+#define DECODE_REL(name, condition)                                \
+name##_REL: {                                                      \
+        operand = bus.Read8(cpu.PC++);                             \
+        u8 penalty = 0;                                            \
+        if (condition) {                                           \
+            u16 oldPC = cpu.PC;                                    \
+            cpu.PC += (s8) operand;                                \
             penalty = 1 + ((oldPC & 0xff00) == (cpu.PC & 0xff00)); \
-        }                           \
-        GOTO_NEXT(penalty);         \
+        }                                                          \
+        GOTO_NEXT(penalty);                                        \
     }
-#define DECODE_IMP(name, code) \
-name##_IMP: {                  \
-        code;            \
-        GOTO_NEXT(0);    \
+#define DECODE_IMP(name, code)                   \
+name##_IMP: {                                    \
+        code                                     \
+        GOTO_NEXT(0)                             \
     }
-#define DECODE_IMM(name, code) \
-name##_IMM: {            \
-        operand = bus.Read8(cpu.PC++); \
-        value = operand; \
-        code;            \
-        GOTO_NEXT(0);    \
+#define DECODE_IMM(name, OP, code)               \
+name##_IMM: {                                    \
+        operand = bus.Read8(cpu.PC++);           \
+        OP(operand)                              \
+        code                                     \
+        GOTO_NEXT(0)                             \
     }
-#define DECODE_ABS(name, code) \
-name##_ABS: {            \
-        operand = bus.Read16(cpu.PC);        \
-        cpu.PC += 2;                         \
-        value = bus.Read8(operand);          \
-        code;            \
-        GOTO_NEXT(0);    \
+#define DECODE_ABS(name, OP, code)               \
+name##_ABS: {                                    \
+        operand = bus.Read16(cpu.PC);            \
+        cpu.PC += 2;                             \
+        OP(operand)                              \
+        code                                     \
+        GOTO_NEXT(0)                             \
     }
-#define DECODE_ABX(name, code, page_cross) \
-name##_ABX: {            \
-        operand = bus.Read16(cpu.PC);        \
-        cpu.PC += 2;                         \
-        value = bus.Read8(operand + cpu.X);  \
-        code;            \
-        GOTO_NEXT(page_cross);    \
+#define DECODE_ABX(name, OP, code, page_cross)   \
+name##_ABX: {                                    \
+        operand = bus.Read16(cpu.PC) + cpu.X;    \
+        cpu.PC += 2;                             \
+        OP(operand)                              \
+        code                                     \
+        GOTO_NEXT(page_cross)                    \
     }
-#define DECODE_ABY(name, code, page_cross) \
-name##_ABY: {            \
-        operand = bus.Read16(cpu.PC);        \
-        cpu.PC += 2;                         \
-        value = bus.Read8(operand + cpu.Y);  \
-        code;            \
-        GOTO_NEXT(page_cross);    \
+#define DECODE_ABY(name, OP, code, page_cross)   \
+name##_ABY: {                                    \
+        operand = bus.Read16(cpu.PC) + cpu.Y;    \
+        cpu.PC += 2;                             \
+        OP(operand)                              \
+        code                                     \
+        GOTO_NEXT(page_cross)                    \
     }
-#define DECODE_INX(name, code) \
-name##_INX: {            \
-        operand = bus.Read8(cpu.PC++ + cpu.X); \
-        operand = bus.Read16(operand);         \
-        value = bus.Read8(operand);            \
-        code;            \
-        GOTO_NEXT(0);    \
+#define DECODE_INX(name, OP, code)               \
+name##_INX: {                                    \
+        operand = bus.Read8(cpu.PC++ + cpu.X);   \
+        operand = bus.Read16(operand);           \
+        OP(operand)                              \
+        code                                     \
+        GOTO_NEXT(0)                             \
     }
-#define DECODE_INY(name, code, page_cross) \
-name##_INY: {            \
-        operand = bus.Read8(cpu.PC);        \
-        operand = bus.Read16(operand);         \
-        value = bus.Read8(operand + cpu.Y);  \
-        code;            \
-        GOTO_NEXT(page_cross);    \
+#define DECODE_INY(name, OP, code, page_cross)   \
+name##_INY: {                                    \
+        operand = bus.Read8(cpu.PC);             \
+        operand = bus.Read16(operand) + cpu.Y;   \
+        OP(operand)                              \
+        code                                     \
+        GOTO_NEXT(page_cross)                    \
     }
-#define DECODE_ZPA(name, code) \
-name##_ZPA: {            \
-        operand = bus.Read8(cpu.PC++); \
-        value = bus.Read8(operand);    \
-        code;            \
-        GOTO_NEXT(0);    \
+#define DECODE_ZPA(name, OP, code)               \
+name##_ZPA: {                                    \
+        operand = bus.Read8(cpu.PC++);           \
+        OP(operand)                              \
+        code;                                    \
+        GOTO_NEXT(0);                            \
     }
-#define DECODE_ZPX(name, code) \
-name##_ZPX: {            \
-        operand = bus.Read8(cpu.PC++);       \
-        value = bus.Read8(operand + cpu.X);  \
-        code;            \
-        GOTO_NEXT(0);    \
+#define DECODE_ZPX(name, OP, code)               \
+name##_ZPX: {                                    \
+        operand = bus.Read8(cpu.PC++) + cpu.X;   \
+        OP(operand)                              \
+        code;                                    \
+        GOTO_NEXT(0);                            \
     }
-#define DECODE_ZPY(name, code) \
-name##_ZPY: {            \
-        operand = bus.Read8(cpu.PC++);       \
-        value = bus.Read8(operand + cpu.Y);  \
-        code;            \
-        GOTO_NEXT(0);    \
+#define DECODE_ZPY(name, OP, code)               \
+name##_ZPY: {                                    \
+        operand = bus.Read8(cpu.PC++) + cpu.Y;   \
+        OP(operand)                              \
+        code;                                    \
+        GOTO_NEXT(0);                            \
     }
 
 u32 Interpreter::RunBlock(u32 max_cycles) {
 
     u32 current_cycles = 0;
     u16 operand;
-    u8 value = 0;
+//    u16 result;
     u8 inst_idx;
 
 /*
@@ -227,9 +231,9 @@ SED         SBC a,y     NOP         ISC a,y     NOP a,x     SBC a,x     INC a,x 
 
     // Control OPCODES
     DECODE_IMP(NOP, {})
-    DECODE_ZPA(BIT, { cpu.SetNZ(value); cpu.SetFlag<CPU::Flags::V>((value & (1 << 6)) != 0); })
-    DECODE_ABS(BIT, { cpu.SetNZ(value); cpu.SetFlag<CPU::Flags::V>((value & (1 << 6)) != 0); })
-    DECODE_IMM(BRK, { cpu.SetFlag<CPU::Flags::I>(true); goto END; })
+    DECODE_ZPA(BIT, READ8, { cpu.SetNZ(value); cpu.SetFlag<CPU::Flags::V>((value & (1 << 6)) != 0); })
+    DECODE_ABS(BIT, READ8, { cpu.SetNZ(value); cpu.SetFlag<CPU::Flags::V>((value & (1 << 6)) != 0); })
+    DECODE_IMM(BRK, NOOP, { cpu.SetFlag<CPU::Flags::I>(true); goto END; })
     DECODE_IMP(RTS, {
         u16 addr = cpu.PopStack();
         addr |= cpu.PopStack() << 8;
@@ -269,12 +273,12 @@ SED         SBC a,y     NOP         ISC a,y     NOP a,x     SBC a,x     INC a,x 
     DECODE_REL(BMI, ((cpu.P & CPU::Flags::N) != 0))
     DECODE_REL(BVC, ((cpu.P & CPU::Flags::V) == 0))
     DECODE_REL(BVS, ((cpu.P & CPU::Flags::V) != 0))
-    DECODE_ABS(JSR, {
+    DECODE_ABS(JSR, NOOP, {
         cpu.PushStack(cpu.PC >> 8 );
         cpu.PushStack(cpu.PC & 0xff );
         cpu.PC = operand;
     })
-    DECODE_ABS(JMP, {
+    DECODE_ABS(JMP, NOOP, {
         cpu.PC = operand;
     })
     JMP_IND: {
@@ -285,14 +289,14 @@ SED         SBC a,y     NOP         ISC a,y     NOP a,x     SBC a,x     INC a,x 
 
     // ALU OPCODES
 #define ALU_OP(name, code) \
-    DECODE_IMM(name, code) \
-    DECODE_ABS(name, code) \
-    DECODE_ABX(name, code, PAGE_CROSS_CHECK(X)) \
-    DECODE_ABY(name, code, PAGE_CROSS_CHECK(Y)) \
-    DECODE_INX(name, code) \
-    DECODE_INY(name, code, PAGE_CROSS_CHECK(Y)) \
-    DECODE_ZPA(name, code) \
-    DECODE_ZPX(name, code)
+    DECODE_IMM(name, NOOP8, code) \
+    DECODE_ABS(name, READ8, code) \
+    DECODE_ABX(name, READ8, code, PAGE_CROSS_CHECK(X)) \
+    DECODE_ABY(name, READ8, code, PAGE_CROSS_CHECK(Y)) \
+    DECODE_INX(name, READ8, code) \
+    DECODE_INY(name, READ8, code, PAGE_CROSS_CHECK(Y)) \
+    DECODE_ZPA(name, READ8, code) \
+    DECODE_ZPX(name, READ8, code)
 
     ALU_OP(ORA, {
         cpu.A |= value;
@@ -316,31 +320,31 @@ SED         SBC a,y     NOP         ISC a,y     NOP a,x     SBC a,x     INC a,x 
 
     // sta is different from the other ALU ops
 #define STA_OP(code) \
-    DECODE_ABS(STA, code) \
-    DECODE_ABX(STA, code, 0) \
-    DECODE_ABY(STA, code, 0) \
-    DECODE_INX(STA, code) \
-    DECODE_INY(STA, code, 0) \
-    DECODE_ZPA(STA, code) \
-    DECODE_ZPX(STA, code)
+    DECODE_ABS(STA, NOOP, code) \
+    DECODE_ABX(STA, NOOP, code, 0) \
+    DECODE_ABY(STA, NOOP, code, 0) \
+    DECODE_INX(STA, NOOP, code) \
+    DECODE_INY(STA, NOOP, code, 0) \
+    DECODE_ZPA(STA, NOOP, code) \
+    DECODE_ZPX(STA, NOOP, code)
     STA_OP({
-        bus.Write8(value, cpu.A);
+        bus.Write8(operand, cpu.A);
     })
 
 #define STX_OP(code) \
-    DECODE_ZPA(STX, code) \
-    DECODE_ZPY(STX, code) \
-    DECODE_ABS(STX, code)
+    DECODE_ZPA(STX, NOOP, code) \
+    DECODE_ZPY(STX, NOOP, code) \
+    DECODE_ABS(STX, NOOP, code)
     STX_OP({
-       bus.Write8(value, cpu.X);
+       bus.Write8(operand, cpu.X);
     })
 
 #define STY_OP(code) \
-    DECODE_ZPA(STY, code) \
-    DECODE_ZPX(STY, code) \
-    DECODE_ABS(STY, code)
+    DECODE_ZPA(STY, NOOP, code) \
+    DECODE_ZPX(STY, NOOP, code) \
+    DECODE_ABS(STY, NOOP, code)
     STY_OP({
-        bus.Write8(value, cpu.Y);
+        bus.Write8(operand, cpu.Y);
     })
 
     ALU_OP(LDA, {
@@ -359,31 +363,31 @@ SED         SBC a,y     NOP         ISC a,y     NOP a,x     SBC a,x     INC a,x 
         cpu.A = (u8)result;
     })
 #define LDX_OP(code) \
-    DECODE_IMM(LDX, code) \
-    DECODE_ABS(LDX, code) \
-    DECODE_ABY(LDX, code, PAGE_CROSS_CHECK(Y)) \
-    DECODE_ZPA(LDX, code) \
-    DECODE_ZPY(LDX, code)
+    DECODE_IMM(LDX, NOOP8, code) \
+    DECODE_ABS(LDX, READ8, code) \
+    DECODE_ABY(LDX, READ8, code, PAGE_CROSS_CHECK(Y)) \
+    DECODE_ZPA(LDX, READ8, code) \
+    DECODE_ZPY(LDX, READ8, code)
     LDX_OP({
        cpu.X = value;
        cpu.SetNZ(value);
     })
 
 #define LDY_OP(code) \
-    DECODE_IMM(LDY, code) \
-    DECODE_ABS(LDY, code) \
-    DECODE_ABX(LDY, code, PAGE_CROSS_CHECK(X)) \
-    DECODE_ZPA(LDY, code) \
-    DECODE_ZPX(LDY, code)
+    DECODE_IMM(LDY, NOOP8, code) \
+    DECODE_ABS(LDY, READ8, code) \
+    DECODE_ABX(LDY, READ8, code, PAGE_CROSS_CHECK(X)) \
+    DECODE_ZPA(LDY, READ8, code) \
+    DECODE_ZPX(LDY, READ8, code)
     LDY_OP({
        cpu.Y = bus.Read8(value);
        cpu.SetNZ(value);
     })
 
 #define CPR_OP(name, code) \
-    DECODE_IMM(name, code) \
-    DECODE_ABS(name, code) \
-    DECODE_ZPA(name, code)
+    DECODE_IMM(name, NOOP8, code) \
+    DECODE_ABS(name, READ8, code) \
+    DECODE_ZPA(name, READ8, code)
     CPR_OP(CPX, {
         cpu.P = (cpu.P & ~CPU::Flags::C) | (cpu.X >= value);
         cpu.SetNZ(value);
@@ -396,10 +400,10 @@ SED         SBC a,y     NOP         ISC a,y     NOP a,x     SBC a,x     INC a,x 
     // RMW OPCODES
 
 #define RMW_OP(name, code) \
-DECODE_ABS(name, code) \
-DECODE_ABX(name, code, 0) \
-DECODE_ZPA(name, code) \
-DECODE_ZPX(name, code)
+DECODE_ABS(name, READ8, code) \
+DECODE_ABX(name, READ8, code, 0) \
+DECODE_ZPA(name, READ8, code) \
+DECODE_ZPX(name, READ8, code)
     RMW_OP(ASL, {
         u16 result = (u16)value << 1;
         bus.Write8(operand, (u8)result);
@@ -432,8 +436,8 @@ DECODE_ZPX(name, code)
     })
     DECODE_IMP(LSR, {
         u8 result = cpu.A >> 1;
+        cpu.SetFlag<CPU::Flags::C>((cpu.A & 1) == 1);
         cpu.A = (u8)result;
-        cpu.SetFlag<CPU::Flags::C>((value & 1) == 1);
         cpu.SetNZ(result);
     })
     RMW_OP(ROR, {
@@ -444,8 +448,8 @@ DECODE_ZPX(name, code)
     })
     DECODE_IMP(ROR, {
         u8 result = (cpu.A >> 1) | ((cpu.P & CPU::Flags::C) << 7);
+        cpu.SetFlag<CPU::Flags::C>((cpu.A & 1) == 1);
         cpu.A = (u8)result;
-        cpu.SetFlag<CPU::Flags::C>((value & 1) == 1);
         cpu.SetNZ(result);
     })
     RMW_OP(DEC, {
