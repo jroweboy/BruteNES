@@ -9,7 +9,7 @@ std::optional<INES> INES::ParseHeader(std::span<u8> header) {
     }
 
     // verify the magic bytes are correct
-    std::string magic{header.begin(), header.begin()+3};
+    std::string magic{header.begin(), header.begin()+4};
     if (magic != "NES\x1a") {
         return std::nullopt;
     }

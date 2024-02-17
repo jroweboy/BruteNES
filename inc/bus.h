@@ -13,14 +13,36 @@ class Bus {
 public:
     Bus(std::span<u8> prg, std::span<u8> chr);
 
-    inline u8 Read8(u16 addr) { return memory.Span()[addr * 4]; }
-    inline u16 Read16(u16 addr) { return (memory.Span()[(addr + 1) * 4] << 8) | memory.Span()[addr * 4]; }
+//    inline u8 Read8(u16 addr) { return memory.Span()[addr * 4]; }
+//    inline u16 Read16(u16 addr) { return (memory.Span()[(addr + 1) * 4] << 8) | memory.Span()[addr * 4]; }
+//
+//    inline void Write8(u16 addr, u8 value) { memory.Span()[addr * 4] = value; }
 
-    inline void Write8(u16 addr, u8 value) { memory.Span()[addr * 4] = value; }
+// I'll revisit using the HOST MMU later, but for now, we can use poormans
+
+    inline u8 Read8(u16 addr) {
+        const auto bank = addr / FakeVirtualMemory::BANK_WINDOW;
+        const auto offset = addr & (FakeVirtualMemory::BANK_WINDOW-1);
+        return fakemmu.map[bank][offset];
+    }
+    inline u16 Read16(u16 addr) {
+        return Read8(addr + 1) << 8 | Read8(addr);
+    }
+    inline void Write8(u16 addr, u8 value) {
+        const auto bank = addr / FakeVirtualMemory::BANK_WINDOW;
+        const auto offset = addr & (FakeVirtualMemory::BANK_WINDOW-1);
+        fakemmu.map[bank][offset] = value;
+    }
+
 
 private:
 
-    VirtualMemory memory{};
+    void InitHostMMU(std::span<u8> prg, std::span<u8> chr);
+    void InitFakeMMU(std::span<u8> prg, std::span<u8> chr);
+
+    HostVirtualMemory hostmmu{};
+    FakeVirtualMemory fakemmu{};
+
     // CPU memory map backing
     std::span<u8> ciram;
     std::span<u8> mmio;

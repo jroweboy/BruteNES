@@ -5,7 +5,7 @@
 
 void CPU::Reset() {
     // https://www.nesdev.org/wiki/CPU_power_up_state
-    PC = 0;
+    PC = bus.Read16(0xfffc);
     SP = 0xfd;
     P = 0x34;
     A = 0;
@@ -344,7 +344,7 @@ SED         SBC a,y     NOP         ISC a,y     NOP a,x     SBC a,x     INC a,x 
     })
 
     ALU_OP(LDA, {
-        cpu.A = bus.Read8(value);
+        cpu.A = value;
         cpu.SetNZ(value);
     })
     ALU_OP(CMP, {
@@ -365,7 +365,7 @@ SED         SBC a,y     NOP         ISC a,y     NOP a,x     SBC a,x     INC a,x 
     DECODE_ZPA(LDX, code) \
     DECODE_ZPY(LDX, code)
     LDX_OP({
-       cpu.X = bus.Read8(value);
+       cpu.X = value;
        cpu.SetNZ(value);
     })
 

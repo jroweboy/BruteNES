@@ -5,6 +5,8 @@ set(PROJECT_NAME brutenes)
 
 project(${PROJECT_NAME} CXX)
 
+include(FetchContent)
+
 # 1. Try system SDL3 package first
 find_package(SDL3 QUIET)
 if(SDL3_FOUND)
@@ -20,16 +22,15 @@ endif()
 
 # 3. Download SDL, and use that.
 if(NOT SDL3_FOUND)
-    include(FetchContent)
     set(SDL_SHARED TRUE CACHE BOOL "Build a SDL shared library (if available)")
     set(SDL_STATIC TRUE CACHE BOOL "Build a SDL static library (if available)")
     FetchContent_Declare(
         SDL
-        SYSTEM
         GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
         GIT_TAG main  # Replace this with a particular git tag or git hash
         GIT_SHALLOW TRUE
         GIT_PROGRESS TRUE
+        SYSTEM
     )
     message(STATUS "Using SDL3 via FetchContent")
     FetchContent_MakeAvailable(SDL)
@@ -38,23 +39,35 @@ endif()
 
 FetchContent_Declare(
     argparse
-    SYSTEM
     GIT_REPOSITORY https://github.com/p-ranav/argparse.git
+    GIT_TAG "v3.0"
+    GIT_SHALLOW TRUE
+    GIT_PROGRESS TRUE
+    SYSTEM
 )
-FetchContent_MakeAvailable()
+FetchContent_Declare(
+    spdlog
+    GIT_REPOSITORY https://github.com/gabime/spdlog
+    GIT_TAG "v1.13.0"
+    GIT_SHALLOW TRUE
+    GIT_PROGRESS TRUE
+    SYSTEM
+)
 
 FetchContent_Declare(
     range-v3
-    SYSTEM
     GIT_REPOSITORY "https://github.com/ericniebler/range-v3"
-    GIT_TAG "a81477931a8aa2ad025c6bda0609f38e09e4d7ec"
+    GIT_TAG "0.12.0"
+    GIT_SHALLOW TRUE
+    GIT_PROGRESS TRUE
+    SYSTEM
 )
 
 FetchContent_MakeAvailable(
     argparse
     range-v3
+    spdlog
 )
-
 
 add_executable(${PROJECT_NAME}
     inc/brutenes.h
@@ -79,6 +92,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     SDL3::SDL3-static
     argparse
     range-v3
+    spdlog
 )
 
+target_include_directories(${PROJECT_NAME} PRIVATE ${easyloggingpp_SOURCE_DIR}/src/)
 target_include_directories(${PROJECT_NAME} PUBLIC inc/)

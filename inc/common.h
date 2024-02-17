@@ -4,6 +4,9 @@
 
 #include <cstdint>
 
+#define SPDLOG_ACTIVE_LEVEL DEBUG
+#include <spdlog/spdlog.h>
+
 using u8 = std::uint8_t;
 using u16 = std::uint16_t;
 using u32 = std::uint32_t;
