@@ -153,38 +153,38 @@ u32 Interpreter::RunBlock(u32 max_cycles) {
     u8 inst_idx = 0;
 
 /*
-BRK 	    ORA (d,x) 	STP 	    SLO (d,x) 	NOP d 	    ORA d 	    ASL d 	    SLO d
-PHP 	    ORA #i 	    ASL 	    ANC #i 	    NOP a 	    ORA a 	    ASL a 	    SLO a
-BPL *+d 	ORA (d),y 	STP 	    SLO (d),y 	NOP d,x 	ORA d,x 	ASL d,x 	SLO d,x
-CLC 	    ORA a,y 	NOP 	    SLO a,y 	NOP a,x 	ORA a,x 	ASL a,x 	SLO a,x
-JSR a 	    AND (d,x) 	STP 	    RLA (d,x) 	BIT d 	    AND d 	    ROL d 	    RLA d
-PLP 	    AND #i 	    ROL 	    ANC #i 	    BIT a 	    AND a 	    ROL a 	    RLA a
-BMI *+d 	AND (d),y 	STP 	    RLA (d),y 	NOP d,x 	AND d,x 	ROL d,x 	RLA d,x
-SEC 	    AND a,y 	NOP 	    RLA a,y 	NOP a,x 	AND a,x 	ROL a,x 	RLA a,x
-RTI 	    EOR (d,x) 	STP 	    SRE (d,x) 	NOP d 	    EOR d 	    LSR d 	    SRE d
-PHA 	    EOR #i 	    LSR 	    ALR #i 	    JMP a 	    EOR a 	    LSR a 	    SRE a
-BVC *+d 	EOR (d),y 	STP 	    SRE (d),y 	NOP d,x 	EOR d,x 	LSR d,x 	SRE d,x
-CLI 	    EOR a,y 	NOP 	    SRE a,y 	NOP a,x 	EOR a,x 	LSR a,x 	SRE a,x
-RTS 	    ADC (d,x) 	STP 	    RRA (d,x) 	NOP d 	    ADC d 	    ROR d 	    RRA d
-PLA 	    ADC #i 	    ROR 	    ARR #i 	    JMP (a) 	ADC a 	    ROR a 	    RRA a
-BVS *+d 	ADC (d),y 	STP 	    RRA (d),y 	NOP d,x 	ADC d,x 	ROR d,x 	RRA d,x
-SEI 	    ADC a,y 	NOP 	    RRA a,y 	NOP a,x 	ADC a,x 	ROR a,x 	RRA a,x
-NOP #i 	    STA (d,x) 	NOP #i 	    SAX (d,x) 	STY d 	    STA d 	    STX d 	    SAX d
-DEY 	    NOP #i 	    TXA 	    XAA #i 	    STY a 	    STA a 	    STX a 	    SAX a
-BCC *+d 	STA (d),y 	STP 	    AHX (d),y 	STY d,x 	STA d,x 	STX d,y 	SAX d,y
-TYA 	    STA a,y 	TXS 	    TAS a,y 	SHY a,x 	STA a,x 	SHX a,y 	AHX a,y
-LDY #i 	    LDA (d,x) 	LDX #i 	    LAX (d,x) 	LDY d 	    LDA d 	    LDX d 	    LAX d
-TAY 	    LDA #i 	    TAX 	    LAX #i 	    LDY a 	    LDA a 	    LDX a 	    LAX a
-BCS *+d 	LDA (d),y 	STP 	    LAX (d),y 	LDY d,x 	LDA d,x 	LDX d,y 	LAX d,y
-CLV 	    LDA a,y 	TSX 	    LAS a,y 	LDY a,x 	LDA a,x 	LDX a,y 	LAX a,y
-CPY #i 	    CMP (d,x) 	NOP #i 	    DCP (d,x) 	CPY d 	    CMP d 	    DEC d 	    DCP d
-INY 	    CMP #i 	    DEX 	    AXS #i 	    CPY a 	    CMP a 	    DEC a 	    DCP a
-BNE *+d 	CMP (d),y 	STP 	    DCP (d),y 	NOP d,x 	CMP d,x 	DEC d,x 	DCP d,x
-CLD 	    CMP a,y 	NOP 	    DCP a,y 	NOP a,x 	CMP a,x 	DEC a,x 	DCP a,x
-CPX #i 	    SBC (d,x) 	NOP #i 	    ISC (d,x) 	CPX d 	    SBC d 	    INC d 	    ISC d
-INX 	    SBC #i 	    NOP 	    SBC #i 	    CPX a 	    SBC a 	    INC a 	    ISC a
-BEQ *+d 	SBC (d),y 	STP 	    ISC (d),y 	NOP d,x 	SBC d,x 	INC d,x 	ISC d,x
-SED 	    SBC a,y 	NOP 	    ISC a,y 	NOP a,x 	SBC a,x 	INC a,x 	ISC a,x
+BRK         ORA (d,x)   STP         SLO (d,x)   NOP d       ORA d       ASL d       SLO d
+PHP         ORA #i      ASL         ANC #i      NOP a       ORA a       ASL a       SLO a
+BPL *+d     ORA (d),y   STP         SLO (d),y   NOP d,x     ORA d,x     ASL d,x     SLO d,x
+CLC         ORA a,y     NOP         SLO a,y     NOP a,x     ORA a,x     ASL a,x     SLO a,x
+JSR a       AND (d,x)   STP         RLA (d,x)   BIT d       AND d       ROL d       RLA d
+PLP         AND #i      ROL         ANC #i      BIT a       AND a       ROL a       RLA a
+BMI *+d     AND (d),y   STP         RLA (d),y   NOP d,x     AND d,x     ROL d,x     RLA d,x
+SEC         AND a,y     NOP         RLA a,y     NOP a,x     AND a,x     ROL a,x     RLA a,x
+RTI         EOR (d,x)   STP         SRE (d,x)   NOP d       EOR d       LSR d       SRE d
+PHA         EOR #i      LSR         ALR #i      JMP a       EOR a       LSR a       SRE a
+BVC *+d     EOR (d),y   STP         SRE (d),y   NOP d,x     EOR d,x     LSR d,x     SRE d,x
+CLI         EOR a,y     NOP         SRE a,y     NOP a,x     EOR a,x     LSR a,x     SRE a,x
+RTS         ADC (d,x)   STP         RRA (d,x)   NOP d       ADC d       ROR d       RRA d
+PLA         ADC #i      ROR         ARR #i      JMP (a)     ADC a       ROR a       RRA a
+BVS *+d     ADC (d),y   STP         RRA (d),y   NOP d,x     ADC d,x     ROR d,x     RRA d,x
+SEI         ADC a,y     NOP         RRA a,y     NOP a,x     ADC a,x     ROR a,x     RRA a,x
+NOP #i      STA (d,x)   NOP #i      SAX (d,x)   STY d       STA d       STX d       SAX d
+DEY         NOP #i      TXA         XAA #i      STY a       STA a       STX a       SAX a
+BCC *+d     STA (d),y   STP         AHX (d),y   STY d,x     STA d,x     STX d,y     SAX d,y
+TYA         STA a,y     TXS         TAS a,y     SHY a,x     STA a,x     SHX a,y     AHX a,y
+LDY #i      LDA (d,x)   LDX #i      LAX (d,x)   LDY d       LDA d       LDX d       LAX d
+TAY         LDA #i      TAX         LAX #i      LDY a       LDA a       LDX a       LAX a
+BCS *+d     LDA (d),y   STP         LAX (d),y   LDY d,x     LDA d,x     LDX d,y     LAX d,y
+CLV         LDA a,y     TSX         LAS a,y     LDY a,x     LDA a,x     LDX a,y     LAX a,y
+CPY #i      CMP (d,x)   NOP #i      DCP (d,x)   CPY d       CMP d       DEC d       DCP d
+INY         CMP #i      DEX         AXS #i      CPY a       CMP a       DEC a       DCP a
+BNE *+d     CMP (d),y   STP         DCP (d),y   NOP d,x     CMP d,x     DEC d,x     DCP d,x
+CLD         CMP a,y     NOP         DCP a,y     NOP a,x     CMP a,x     DEC a,x     DCP a,x
+CPX #i      SBC (d,x)   NOP #i      ISC (d,x)   CPX d       SBC d       INC d       ISC d
+INX         SBC #i      NOP         SBC #i      CPX a       SBC a       INC a       ISC a
+BEQ *+d     SBC (d),y   STP         ISC (d),y   NOP d,x     SBC d,x     INC d,x     ISC d,x
+SED         SBC a,y     NOP         ISC a,y     NOP a,x     SBC a,x     INC a,x     ISC a,x
 */
     static std::array<void*, 256> inst_lut = {
         &&BRK_IMM, &&ORA_INX, &&STP_IMP, &&SLO_INX, &&NOP_ZPA, &&ORA_ZPA, &&ASL_ZPA, &&SLO_ZPA,
@@ -196,7 +196,7 @@ SED 	    SBC a,y 	NOP 	    ISC a,y 	NOP a,x 	SBC a,x 	INC a,x 	ISC a,x
         &&BMI_REL, &&AND_INY, &&STP_IMP, &&RLA_INY, &&NOP_ZPX, &&AND_ZPX, &&ROL_ZPX, &&RLA_ZPX,
         &&SEC_IMP, &&AND_ABY, &&NOP_IMP, &&RLA_ABY, &&NOP_ABX, &&AND_ABX, &&ROL_ABX, &&RLA_ABX,
         &&RTI_IMP, &&EOR_INX, &&STP_IMP, &&SRE_INX, &&NOP_ZPA, &&EOR_ZPA, &&LSR_ZPA, &&SRE_ZPA,
-        &&PHA_IMP, &&EOR_IMM, &&LSR_IMP, &&ALR_IMM,	&&JMP_ABS, &&EOR_ABS, &&LSR_ABS, &&SRE_ABS,
+        &&PHA_IMP, &&EOR_IMM, &&LSR_IMP, &&ALR_IMM, &&JMP_ABS, &&EOR_ABS, &&LSR_ABS, &&SRE_ABS,
         &&BVC_REL, &&EOR_INY, &&STP_IMP, &&SRE_INY, &&NOP_ZPX, &&EOR_ZPX, &&LSR_ZPX, &&SRE_ZPX,
         &&CLI_IMP, &&EOR_ABY, &&NOP_IMP, &&SRE_ABY, &&NOP_ABX, &&EOR_ABX, &&LSR_ABX, &&SRE_ABX,
         &&RTS_IMP, &&ADC_INX, &&STP_IMP, &&RRA_INX, &&NOP_ZPA, &&ADC_ZPA, &&ROR_ZPA, &&RRA_ZPA,
@@ -224,7 +224,6 @@ SED 	    SBC a,y 	NOP 	    ISC a,y 	NOP a,x 	SBC a,x 	INC a,x 	ISC a,x
     // Start the interpreter
     FETCH_NEXT;
     goto* inst_lut[inst_idx];
-
 
     // Control OPCODES
     DECODE_IMP(NOP, {});
@@ -294,7 +293,6 @@ SED 	    SBC a,y 	NOP 	    ISC a,y 	NOP a,x 	SBC a,x 	INC a,x 	ISC a,x
     DECODE_INY(name, code, PAGE_CROSS_CHECK(Y)) \
     DECODE_ZPA(name, code) \
     DECODE_ZPX(name, code);
-//    DECODE_ZPY(name, code);
 
     ALU_OP(ORA, {
         cpu.A |= value;
@@ -324,8 +322,7 @@ SED 	    SBC a,y 	NOP 	    ISC a,y 	NOP a,x 	SBC a,x 	INC a,x 	ISC a,x
     DECODE_INX(STA, code) \
     DECODE_INY(STA, code, 0) \
     DECODE_ZPA(STA, code) \
-    DECODE_ZPX(STA, code) \
-    DECODE_ZPY(STA, code);
+    DECODE_ZPX(STA, code);
     STA_OP({
         bus.Write8(value, cpu.A);
     });
