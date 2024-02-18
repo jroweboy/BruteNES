@@ -3,6 +3,8 @@
 #ifndef BRUTENES_PPU_H
 #define BRUTENES_PPU_H
 
+#include <mutex>
+
 #include "common.h"
 #include "scheduler.h"
 
@@ -14,9 +16,11 @@ public:
     constexpr static auto CYCLES_PER_SCANLINE = 341 * Scheduler::NTSC_PPU_CLOCK_DIVIDER;
 
     explicit PPU(Bus& bus, Scheduler& timing) : bus(bus), timing(timing) {}
-    void CatchUp();
 
-    void RunScanline();
+    u8 ReadRegister(u16 addr);
+    void WriteRegister(u16 addr, u8 value);
+
+    void CatchUp();
     void Tick();
 
     bool even_frame{};
@@ -28,7 +32,7 @@ VPHB SINN
 |||| ||||
 |||| ||++- Base nametable address
 |||| ||    (0 = $2000; 1 = $2400; 2 = $2800; 3 = $2C00)
-|||| |+--- VRAM address increment per CPU read/write of PPUDATA
+|||| |+--- VRAM address vertical_write per CPU read/write of PPUDATA
 |||| |     (0: add 1, going across; 1: add 32, going down)
 |||| +---- Sprite pattern table address for 8x8 sprites
 ||||       (0: $0000; 1: $1000; ignored in 8x16 mode)
@@ -43,7 +47,7 @@ VPHB SINN
         u8 raw;
         struct {
             u8 nametable : 2;
-            u8 increment : 1;
+            u8 vertical_write : 1;
             u8 sp_pattern : 1;
             u8 bg_pattern : 1;
             u8 sp_size : 1;
@@ -72,8 +76,8 @@ BGRs bMmG
             u8 greyscale : 1;
             u8 bg_left : 1;
             u8 sp_left : 1;
-            u8 bg_show : 1;
-            u8 sp_show : 1;
+            u8 bg_enable : 1;
+            u8 sp_enable : 1;
             u8 emp_red : 1;
             u8 emp_green : 1;
             u8 emp_blue : 1;
@@ -117,10 +121,60 @@ VSO. ....
     PPUMASK mask{};
     PPUSTATUS status{};
 
+    u8 oamaddr;
+
+    [[nodiscard]] inline bool RenderingEnabled() const {
+        return mask.bg_enable || mask.sp_enable;
+    }
+
+    u8* LockBuffer() {
+        std::unique_lock<std::mutex> lock(swap_mutex);
+        std::swap(front_buffer, back_buffer);
+        return front_buffer;
+    }
+
+    void SwapBuffer() {
+        std::unique_lock<std::mutex> lock(swap_mutex);
+        std::swap(back_buffer, rendering_to);
+    }
+
+
 private:
+
+    bool w{}; // 1 bit - write toggle
+    u16 v{}; // 15 bits - vram addr
+    u16 t{}; // 15 bits - temporary vram addr
+    u8 x{}; // 3 bits - fine_x scroll
+
+    u8 latch{};
+
+    void OAMDMA();
+    void RunFastScanline();
+    void OAMEvaluation();
+    void UpdateVideoRamAddr();
+    inline void IncrementHScroll();
+    inline void IncrementVScroll();
+
+    std::array<u8, 256> secondaryOAM{};
+    std::array<u8, 0x20> palette{};
+
     Bus& bus;
     Scheduler& timing;
     u64 current_cycle{};
+
+    // Internal scanline cycle count
+    u16 scanline{};
+    u16 cycle{};
+
+    std::array<u8, 256 * 240> pixel_buffer1;
+    std::array<u8, 256 * 240> pixel_buffer2;
+    std::array<u8, 256 * 240> pixel_buffer3;
+
+    std::mutex swap_mutex;
+    u8* front_buffer{};
+    u8* back_buffer{};
+    u8* rendering_to{};
+    std::array<u8*, 3> buffers = {pixel_buffer1.data(), pixel_buffer2.data(), pixel_buffer3.data()};
 };
 
 

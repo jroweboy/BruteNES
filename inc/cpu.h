@@ -6,9 +6,9 @@
 #include <vector>
 #include <bit>
 
+#include "bus.h"
 #include "common.h"
 
-class Bus;
 class CPU;
 
 class Interpreter {
@@ -49,8 +49,12 @@ public:
         P = (P & ~F) | (result << std::countr_zero((u8)F));
     }
 
-    inline void PushStack(u8 value);
-    inline u8 PopStack();
+    inline void PushStack(u8 value) {
+        bus.Write8(0x100 | SP--, value);
+    }
+    inline u8 PopStack() {
+        return bus.Read8(0x100 | ++SP);
+    }
 
     void Reset();
 

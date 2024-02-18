@@ -13,6 +13,11 @@ class Bus {
 public:
     Bus(std::span<u8> prg, std::span<u8> chr);
 
+    // TODO better open bus handling
+    inline u8 OpenBus() const {
+        return 0;
+    }
+
 //    inline u8 Read8(u16 addr) { return memory.Span()[addr * 4]; }
 //    inline u16 Read16(u16 addr) { return (memory.Span()[(addr + 1) * 4] << 8) | memory.Span()[addr * 4]; }
 //
@@ -33,6 +38,23 @@ public:
         const auto offset = addr & (FakeVirtualMemory::BANK_WINDOW-1);
         fakemmu.cpumem[bank][offset] = value;
     }
+
+    inline u8 ReadVRAM8(u16 addr) {
+        const auto bank = addr / FakeVirtualMemory::BANK_WINDOW;
+        const auto offset = addr & (FakeVirtualMemory::BANK_WINDOW-1);
+        return fakemmu.ppumem[bank][offset];
+    }
+    inline u16 ReadVRAM16(u16 addr) {
+        return Read8(addr + 1) << 8 | Read8(addr);
+    }
+    inline void WriteVRAM8(u16 addr, u8 value) {
+        const auto bank = addr / FakeVirtualMemory::BANK_WINDOW;
+        const auto offset = addr & (FakeVirtualMemory::BANK_WINDOW-1);
+        fakemmu.ppumem[bank][offset] = value;
+    }
+
+    // Latest vram address from the PPU increment
+    u16 vram_addr{};
 
 private:
 

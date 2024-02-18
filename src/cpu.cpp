@@ -19,14 +19,6 @@ u32 CPU::RunFor(u64 cycles) {
     return count;
 }
 
-inline void CPU::PushStack(u8 value) {
-    bus.Write8(0x100 | SP--, value);
-}
-
-u8 CPU::PopStack() {
-    return bus.Read8(0x100 | ++SP);
-}
-
 // Copied from https://github.com/bheisler/Corrosion/blob/5ca2b3a03825c3d58623df774a8596de32b46812/src/cpu/mod.rs#L356
 static std::array<u8, 256> cycle_lut = {
     /*0x00*/ 7,6,2,8,3,3,5,5,3,2,2,2,4,4,6,6,
