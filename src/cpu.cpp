@@ -336,9 +336,12 @@ u32 Interpreter::RunBlock(u32 max_cycles) {
         cpu.SetNZ(value);
     })
     ALU_OP(ADC, {
-        u16 result = (u16)cpu.A + (u16)value + (cpu.P & CPU::Flags::C) != 0;
+        u8 carry_out;
+        u8 result = __builtin_addcb(cpu.A, value, cpu.P & 1, &carry_out);
+        cpu.SetFlag<CPU::Flags::C>(carry_out);
+//        u16 result = (u16)cpu.A + (u16)value + ((cpu.P & CPU::Flags::C) != 0);
+//        cpu.SetFlag<CPU::Flags::C>(result > 0xFF);
         cpu.SetFlag<CPU::Flags::V>((~(cpu.A ^ value) & (cpu.A ^ result) & 0x80) != 0);
-        cpu.SetFlag<CPU::Flags::C>(result > 0xFF);
         cpu.SetNZ(result);
         cpu.A = (u8)result;
     })
@@ -381,8 +384,11 @@ u32 Interpreter::RunBlock(u32 max_cycles) {
         cpu.SetNZ(value);
     })
     ALU_OP(SBC, {
-        u16 result = (u16)cpu.A + (u16)(value^0xff) + (cpu.P & CPU::Flags::C) != 0;
-        cpu.SetFlag<CPU::Flags::C>(result > 0xFF);
+//        u16 result = (u16)cpu.A + (u16)(value^0xff) + ((cpu.P & CPU::Flags::C) != 0);
+//        cpu.SetFlag<CPU::Flags::C>(result > 0xFF);
+        uint8_t carry_out;
+        uint8_t result = __builtin_addcb(cpu.A, value ^ 0xff, cpu.P & 1, &carry_out);
+        cpu.SetFlag<CPU::Flags::C>(carry_out);
         cpu.SetFlag<CPU::Flags::V>((~(cpu.A ^ value) & (cpu.A ^ result) & 0x80) != 0);
         cpu.SetNZ(result);
         cpu.A = (u8)result;
