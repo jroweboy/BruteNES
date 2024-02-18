@@ -117,7 +117,7 @@ name##_ABY: {                                    \
     }
 #define DECODE_INX(name, OP, code)               \
 name##_INX: {                                    \
-        operand = bus.Read8(cpu.PC) + cpu.X;     \
+        operand = bus.Read8(cpu.PC++) + cpu.X;   \
         if ((operand & 0xff) == 0xff) {          \
             u8 lo = bus.Read8(operand);          \
             u8 hi = bus.Read8(operand - 0xff);   \
@@ -131,7 +131,7 @@ name##_INX: {                                    \
     }
 #define DECODE_INY(name, OP, code, page_cross)   \
 name##_INY: {                                    \
-        operand = bus.Read8(cpu.PC);             \
+        operand = bus.Read8(cpu.PC++);           \
         if ((operand & 0xff) == 0xff) {          \
             u8 lo = bus.Read8(0xff);             \
             u8 hi = bus.Read8(0);                \
@@ -502,6 +502,17 @@ DECODE_ZPX(name, READ8, code)
         cpu.SetNZ(cpu.Y);
     })
 
+    // Unofficial Opcodes
+
+#define OP_NOP() \
+    DECODE_IMM(NOP, NOOP, {}) \
+    DECODE_ABS(NOP, NOOP, {}) \
+    DECODE_ABX(NOP, NOOP, {}, 0) \
+    DECODE_ZPA(NOP, NOOP, {}) \
+    DECODE_ZPX(NOP, NOOP, {})
+
+    OP_NOP()
+
     // Unimplemented
     ANC_IMM:
     STP_IMP:
@@ -527,7 +538,7 @@ DECODE_ZPX(name, READ8, code)
     ALU_OP(DCP, {})
     ALU_OP(ISC, {})
     ALU_OP(RLA, {})
-    ALU_OP(NOP, {})
+
 END:
     return current_cycles;
 }
