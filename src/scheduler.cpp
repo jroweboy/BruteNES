@@ -1,5 +1,5 @@
 
-
+#include "cpu.h"
 #include "scheduler.h"
 
 void Scheduler::ScheduleInterrupt(s32 cycles_from_now, InterruptSource source, bool recurring) {
@@ -11,16 +11,21 @@ void Scheduler::ScheduleInterrupt(s32 cycles_from_now, InterruptSource source, b
     });
 }
 
-s64 Scheduler::CPUCyclesTillInterrupt() {
+s64 Scheduler::CPUCyclesTillInterrupt() const {
     auto& top = queue.top();
-    return ((s64)top.cycles - (s64)cycle_count) / NTSC_CLOCK_DIVIDER;
+    return ((s64)top.cycles - (s64)cycle_count) / NTSC_CPU_CLOCK_DIVIDER;
 }
 
 void Scheduler::AddCPUCycles(s64 cycles) {
     auto i = queue.top();
-    auto next_cycle_count = (cycle_count + cycles * NTSC_CLOCK_DIVIDER);
+    auto next_cycle_count = (cycle_count + cycles * NTSC_CPU_CLOCK_DIVIDER);
     while (i.cycles < next_cycle_count) {
         queue.pop();
+        if (i.source == InterruptSource::NMI) {
+            cpu.pending_nmi = true;
+        } else {
+            cpu.pending_irq = true;
+        }
         if (i.recurring) {
             queue.emplace(Interrupt{
                     .cycles = i.cycles + i.repeats,
@@ -33,6 +38,7 @@ void Scheduler::AddCPUCycles(s64 cycles) {
             break;
     }
     cycle_count = next_cycle_count;
+    frame_count = cycle_count / NTSC_CLOCK_PER_FRAME;
 }
 
 bool CompareInterrupt(Interrupt a, Interrupt b) {

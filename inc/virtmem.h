@@ -13,7 +13,10 @@ class FakeVirtualMemory {
 public:
     static constexpr auto BANK_WINDOW = 0x400;
     static constexpr auto ADDRESS_SPACE = 0x10000;
+    static constexpr auto PPU_ADDRESS_SPACE = 0x4000;
     static constexpr auto BANK_COUNT = ADDRESS_SPACE / BANK_WINDOW;
+    static constexpr auto MAX_PRG_SIZE = 8 * 1024 * 1024;
+    static constexpr auto MAX_CHR_SIZE = 8 * 1024 * 1024;
     static constexpr auto CIRAM_SIZE = 0x800;
 
     enum Tag : u8 {
@@ -23,17 +26,24 @@ public:
         MMIO     = 1 << 2,
     };
 
+    void InitCPUMap(std::span<u8> prg);
+    void InitPPUMap(std::span<u8> chr);
+
 //    void Reserve(u32 size);
 //
 //    std::span<u8> CreateView(u32 offset, u32 size);
 //    std::span<u8> MapView(std::span<u8> view, u32 offset);
 
     std::array<u8, BANK_COUNT> attr{};
-    std::array<u8*, BANK_COUNT> map{};
+    std::array<u8*, BANK_COUNT> cpumem{};
+    std::array<u8*, BANK_COUNT> ppumem{};
 
     std::array<u8, CIRAM_SIZE> ciram{};
-    std::vector<std::array<u8, BANK_WINDOW>> prg{};
-    std::vector<std::array<u8, BANK_WINDOW>> chr{};
+    int prg_bank_count{};
+    int chr_bank_count{};
+
+    std::array<std::array<u8, BANK_WINDOW>, MAX_PRG_SIZE> prg{};
+    std::array<std::array<u8, BANK_WINDOW>, MAX_CHR_SIZE> chr{};
 
 private:
 };

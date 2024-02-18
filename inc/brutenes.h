@@ -12,6 +12,7 @@
 #include "bus.h"
 #include "cpu.h"
 #include "ines.h"
+#include "ppu.h"
 #include "scheduler.h"
 
 class BruteNES {
@@ -26,6 +27,7 @@ private:
     explicit BruteNES(std::vector<u8>&& rom, std::span<u8> prg, std::span<u8> chr);
     Bus bus;
     CPU cpu;
+    PPU ppu;
     Scheduler timing;
 
     std::vector<u8> rom;

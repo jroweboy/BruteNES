@@ -4,12 +4,15 @@
 #define BRUTENES_PPU_H
 
 #include "common.h"
+#include "scheduler.h"
 
 class Bus;
 class Scheduler;
 
 class PPU {
 public:
+    constexpr static auto CYCLES_PER_SCANLINE = 341 * Scheduler::NTSC_PPU_CLOCK_DIVIDER;
+
     explicit PPU(Bus& bus, Scheduler& timing) : bus(bus), timing(timing) {}
     void CatchUp();
 
@@ -108,7 +111,7 @@ VSO. ....
         };
     };
 
-    
+
 
     PPUCTRL ctrl{};
     PPUMASK mask{};

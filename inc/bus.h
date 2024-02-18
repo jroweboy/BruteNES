@@ -23,7 +23,7 @@ public:
     inline u8 Read8(u16 addr) {
         const auto bank = addr / FakeVirtualMemory::BANK_WINDOW;
         const auto offset = addr & (FakeVirtualMemory::BANK_WINDOW-1);
-        return fakemmu.map[bank][offset];
+        return fakemmu.cpumem[bank][offset];
     }
     inline u16 Read16(u16 addr) {
         return Read8(addr + 1) << 8 | Read8(addr);
@@ -31,30 +31,29 @@ public:
     inline void Write8(u16 addr, u8 value) {
         const auto bank = addr / FakeVirtualMemory::BANK_WINDOW;
         const auto offset = addr & (FakeVirtualMemory::BANK_WINDOW-1);
-        fakemmu.map[bank][offset] = value;
+        fakemmu.cpumem[bank][offset] = value;
     }
-
 
 private:
 
-    void InitHostMMU(std::span<u8> prg, std::span<u8> chr);
+//    void InitHostMMU(std::span<u8> prg, std::span<u8> chr);
     void InitFakeMMU(std::span<u8> prg, std::span<u8> chr);
 
     HostVirtualMemory hostmmu{};
     FakeVirtualMemory fakemmu{};
 
-    // CPU memory map backing
-    std::span<u8> ciram;
-    std::span<u8> mmio;
-    std::array<std::span<u8>, 10> prgmap{};
-    // PRG ROM banks
-    std::vector<std::span<u8>> prgbank{};
-    // CHR ROM banks
-    std::vector<std::span<u8>> chrbank{};
-    // PPU memory map backing
-    std::array<std::span<u8>, 8> chrmap{};
-    std::array<std::span<u8>, 4> nmtmap{};
-    std::span<u8> palette;
+    // CPU memory cpumem backing
+//    std::span<u8> ciram;
+//    std::span<u8> mmio;
+//    std::array<std::span<u8>, 10> prgmap{};
+//    // PRG ROM banks
+//    std::vector<std::span<u8>> prgbank{};
+//    // CHR ROM banks
+//    std::vector<std::span<u8>> chrbank{};
+//    // PPU memory cpumem backing
+//    std::array<std::span<u8>, 8> chrmap{};
+//    std::array<std::span<u8>, 4> nmtmap{};
+//    std::span<u8> palette;
 };
 
 

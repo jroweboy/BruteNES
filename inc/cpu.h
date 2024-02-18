@@ -63,6 +63,8 @@ public:
     u8 A{};
     u8 X{};
     u8 Y{};
+    bool pending_irq{};
+    bool pending_nmi{};
 
 private:
     Bus& bus;

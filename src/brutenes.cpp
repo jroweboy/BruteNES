@@ -6,7 +6,7 @@
 #include "ines.h"
 
 BruteNES::BruteNES(std::vector<u8>&& filedata, std::span<u8> prg, std::span<u8> chr)
-    : bus(prg, chr), cpu(bus), timing(), rom(filedata) {}
+    : bus(prg, chr), cpu(bus), ppu(bus, timing), timing(cpu), rom(filedata) {}
 
 std::unique_ptr<BruteNES> BruteNES::Init(std::vector<u8>&& filedata) {
     auto ines = INES::ParseHeader(std::span(filedata).subspan(0, 0x10));
@@ -25,19 +25,42 @@ std::unique_ptr<BruteNES> BruteNES::Init(std::vector<u8>&& filedata) {
 
 void BruteNES::RunFrame() {
     // run from the start of vblank until the start of the next vblank
+    u32 current_frame = timing.frame_count;
     while (true) {
-//        auto& next_interrupt = timing.queue.top();
         u32 count = cpu.RunFor(timing.CPUCyclesTillInterrupt());
         timing.AddCPUCycles(count);
-//        u64 count = cpu.RunFor((u64)-1);
+        ppu.CatchUp();
 
-        break;
+        // Check for the IRQ flag to see if we need to run the 7 cycle IRQ handle
+        if (cpu.pending_nmi) {
+            if (ppu.ctrl.nmi != 0) {
+                cpu.PushStack(cpu.PC >> 8);
+                cpu.PushStack(cpu.PC & 0xff);
+                cpu.PushStack(cpu.P);
+                cpu.PC = bus.Read16(0xfffa);
+                cpu.SetFlag<CPU::Flags::I>(true);
+                timing.AddCPUCycles(7);
+            }
+            cpu.pending_nmi = false;
+        }
+        if (cpu.pending_irq && (cpu.P & CPU::Flags::I) == 0) {
+            cpu.PushStack(cpu.PC >> 8);
+            cpu.PushStack(cpu.PC & 0xff);
+            cpu.PushStack(cpu.P);
+            cpu.PC = bus.Read16(0xfffe);
+            cpu.SetFlag<CPU::Flags::I>(true);
+            timing.AddCPUCycles(7);
+        }
+
+        if (current_frame != timing.frame_count) {
+            break;
+        }
     }
 }
 
 void BruteNES::ColdBoot() {
     // Setup vblank interval timer
-    timing.ScheduleInterrupt(Scheduler::NTSC_MASTER_CLOCK, InterruptSource::NMI, true);
+    timing.ScheduleInterrupt(Scheduler::NTSC_CLOCK_PER_FRAME, InterruptSource::NMI, true);
     cpu.Reset();
 }
 

@@ -15,15 +15,16 @@ void CPU::Reset() {
 }
 
 u32 CPU::RunFor(u64 cycles) {
-    return interpreter.RunBlock(cycles);
+    u32 count = interpreter.RunBlock(cycles);
+    return count;
 }
 
-void CPU::PushStack(u8 value) {
+inline void CPU::PushStack(u8 value) {
     bus.Write8(0x100 | SP--, value);
 }
 
 u8 CPU::PopStack() {
-    return bus.Read8(0x100 | SP++);
+    return bus.Read8(0x100 | ++SP);
 }
 
 // Copied from https://github.com/bheisler/Corrosion/blob/5ca2b3a03825c3d58623df774a8596de32b46812/src/cpu/mod.rs#L356
@@ -52,8 +53,10 @@ static std::array<u8, 256> cycle_lut = {
 #define NOOP16(inner) u16 value = inner;
 #define READ8(inner) u8 value = bus.Read8(inner);
 
-#define FETCH_NEXT {                                               \
+#define FETCH_NEXT { \
+        u8 prev_idx = inst_idx;             \
         inst_idx = bus.Read8(cpu.PC++);                            \
+        SPDLOG_INFO("{:2X} {:X} -> {:2X} @ {:4X}", prev_idx, operand, inst_idx, cpu.PC);    \
     }
 #define PAGE_CROSS_CHECK(reg) (((operand + cpu.reg) & 0xff) < cpu.reg)
 
@@ -114,8 +117,14 @@ name##_ABY: {                                    \
     }
 #define DECODE_INX(name, OP, code)               \
 name##_INX: {                                    \
-        operand = bus.Read8(cpu.PC++ + cpu.X);   \
-        operand = bus.Read16(operand);           \
+        operand = bus.Read8(cpu.PC) + cpu.X;     \
+        if ((operand & 0xff) == 0xff) {          \
+            u8 lo = bus.Read8(operand);          \
+            u8 hi = bus.Read8(operand - 0xff);   \
+            operand = (hi << 8) | lo;            \
+        } else {                                 \
+            operand = bus.Read16(operand);       \
+        }                                        \
         OP(operand)                              \
         code                                     \
         GOTO_NEXT(0)                             \
@@ -123,7 +132,14 @@ name##_INX: {                                    \
 #define DECODE_INY(name, OP, code, page_cross)   \
 name##_INY: {                                    \
         operand = bus.Read8(cpu.PC);             \
-        operand = bus.Read16(operand) + cpu.Y;   \
+        if ((operand & 0xff) == 0xff) {          \
+            u8 lo = bus.Read8(0xff);             \
+            u8 hi = bus.Read8(0);                \
+            operand = (hi << 8) | lo;            \
+        } else {                                 \
+            operand = bus.Read16(operand);       \
+        }                                        \
+        operand += cpu.Y;                        \
         OP(operand)                              \
         code                                     \
         GOTO_NEXT(page_cross)                    \
@@ -158,38 +174,38 @@ u32 Interpreter::RunBlock(u32 max_cycles) {
     u8 inst_idx;
 
 /*
-BRK         ORA (d,x)   STP         SLO (d,x)   NOP d       ORA d       ASL d       SLO d
-PHP         ORA #i      ASL         ANC #i      NOP a       ORA a       ASL a       SLO a
-BPL *+d     ORA (d),y   STP         SLO (d),y   NOP d,x     ORA d,x     ASL d,x     SLO d,x
-CLC         ORA a,y     NOP         SLO a,y     NOP a,x     ORA a,x     ASL a,x     SLO a,x
-JSR a       AND (d,x)   STP         RLA (d,x)   BIT d       AND d       ROL d       RLA d
-PLP         AND #i      ROL         ANC #i      BIT a       AND a       ROL a       RLA a
-BMI *+d     AND (d),y   STP         RLA (d),y   NOP d,x     AND d,x     ROL d,x     RLA d,x
-SEC         AND a,y     NOP         RLA a,y     NOP a,x     AND a,x     ROL a,x     RLA a,x
-RTI         EOR (d,x)   STP         SRE (d,x)   NOP d       EOR d       LSR d       SRE d
-PHA         EOR #i      LSR         ALR #i      JMP a       EOR a       LSR a       SRE a
-BVC *+d     EOR (d),y   STP         SRE (d),y   NOP d,x     EOR d,x     LSR d,x     SRE d,x
-CLI         EOR a,y     NOP         SRE a,y     NOP a,x     EOR a,x     LSR a,x     SRE a,x
-RTS         ADC (d,x)   STP         RRA (d,x)   NOP d       ADC d       ROR d       RRA d
-PLA         ADC #i      ROR         ARR #i      JMP (a)     ADC a       ROR a       RRA a
-BVS *+d     ADC (d),y   STP         RRA (d),y   NOP d,x     ADC d,x     ROR d,x     RRA d,x
-SEI         ADC a,y     NOP         RRA a,y     NOP a,x     ADC a,x     ROR a,x     RRA a,x
-NOP #i      STA (d,x)   NOP #i      SAX (d,x)   STY d       STA d       STX d       SAX d
-DEY         NOP #i      TXA         XAA #i      STY a       STA a       STX a       SAX a
-BCC *+d     STA (d),y   STP         AHX (d),y   STY d,x     STA d,x     STX d,y     SAX d,y
-TYA         STA a,y     TXS         TAS a,y     SHY a,x     STA a,x     SHX a,y     AHX a,y
-LDY #i      LDA (d,x)   LDX #i      LAX (d,x)   LDY d       LDA d       LDX d       LAX d
-TAY         LDA #i      TAX         LAX #i      LDY a       LDA a       LDX a       LAX a
-BCS *+d     LDA (d),y   STP         LAX (d),y   LDY d,x     LDA d,x     LDX d,y     LAX d,y
-CLV         LDA a,y     TSX         LAS a,y     LDY a,x     LDA a,x     LDX a,y     LAX a,y
-CPY #i      CMP (d,x)   NOP #i      DCP (d,x)   CPY d       CMP d       DEC d       DCP d
-INY         CMP #i      DEX         AXS #i      CPY a       CMP a       DEC a       DCP a
-BNE *+d     CMP (d),y   STP         DCP (d),y   NOP d,x     CMP d,x     DEC d,x     DCP d,x
-CLD         CMP a,y     NOP         DCP a,y     NOP a,x     CMP a,x     DEC a,x     DCP a,x
-CPX #i      SBC (d,x)   NOP #i      ISC (d,x)   CPX d       SBC d       INC d       ISC d
-INX         SBC #i      NOP         SBC #i      CPX a       SBC a       INC a       ISC a
-BEQ *+d     SBC (d),y   STP         ISC (d),y   NOP d,x     SBC d,x     INC d,x     ISC d,x
-SED         SBC a,y     NOP         ISC a,y     NOP a,x     SBC a,x     INC a,x     ISC a,x
+0x00   BRK         ORA (d,x)   STP         SLO (d,x)   NOP d       ORA d       ASL d       SLO d
+0x08   PHP         ORA #i      ASL         ANC #i      NOP a       ORA a       ASL a       SLO a
+0x10   BPL *+d     ORA (d),y   STP         SLO (d),y   NOP d,x     ORA d,x     ASL d,x     SLO d,x
+0x18   CLC         ORA a,y     NOP         SLO a,y     NOP a,x     ORA a,x     ASL a,x     SLO a,x
+0x20   JSR a       AND (d,x)   STP         RLA (d,x)   BIT d       AND d       ROL d       RLA d
+0x28   PLP         AND #i      ROL         ANC #i      BIT a       AND a       ROL a       RLA a
+0x30   BMI *+d     AND (d),y   STP         RLA (d),y   NOP d,x     AND d,x     ROL d,x     RLA d,x
+0x38   SEC         AND a,y     NOP         RLA a,y     NOP a,x     AND a,x     ROL a,x     RLA a,x
+0x40   RTI         EOR (d,x)   STP         SRE (d,x)   NOP d       EOR d       LSR d       SRE d
+0x48   PHA         EOR #i      LSR         ALR #i      JMP a       EOR a       LSR a       SRE a
+0x50   BVC *+d     EOR (d),y   STP         SRE (d),y   NOP d,x     EOR d,x     LSR d,x     SRE d,x
+0x58   CLI         EOR a,y     NOP         SRE a,y     NOP a,x     EOR a,x     LSR a,x     SRE a,x
+0x60   RTS         ADC (d,x)   STP         RRA (d,x)   NOP d       ADC d       ROR d       RRA d
+0x68   PLA         ADC #i      ROR         ARR #i      JMP (a)     ADC a       ROR a       RRA a
+0x70   BVS *+d     ADC (d),y   STP         RRA (d),y   NOP d,x     ADC d,x     ROR d,x     RRA d,x
+0x78   SEI         ADC a,y     NOP         RRA a,y     NOP a,x     ADC a,x     ROR a,x     RRA a,x
+0x80   NOP #i      STA (d,x)   NOP #i      SAX (d,x)   STY d       STA d       STX d       SAX d
+0x88   DEY         NOP #i      TXA         XAA #i      STY a       STA a       STX a       SAX a
+0x90   BCC *+d     STA (d),y   STP         AHX (d),y   STY d,x     STA d,x     STX d,y     SAX d,y
+0x98   TYA         STA a,y     TXS         TAS a,y     SHY a,x     STA a,x     SHX a,y     AHX a,y
+0xa0   LDY #i      LDA (d,x)   LDX #i      LAX (d,x)   LDY d       LDA d       LDX d       LAX d
+0xa8   TAY         LDA #i      TAX         LAX #i      LDY a       LDA a       LDX a       LAX a
+0xb0   BCS *+d     LDA (d),y   STP         LAX (d),y   LDY d,x     LDA d,x     LDX d,y     LAX d,y
+0xb8   CLV         LDA a,y     TSX         LAS a,y     LDY a,x     LDA a,x     LDX a,y     LAX a,y
+0xc0   CPY #i      CMP (d,x)   NOP #i      DCP (d,x)   CPY d       CMP d       DEC d       DCP d
+0xc8   INY         CMP #i      DEX         AXS #i      CPY a       CMP a       DEC a       DCP a
+0xd0   BNE *+d     CMP (d),y   STP         DCP (d),y   NOP d,x     CMP d,x     DEC d,x     DCP d,x
+0xd8   CLD         CMP a,y     NOP         DCP a,y     NOP a,x     CMP a,x     DEC a,x     DCP a,x
+0xe0   CPX #i      SBC (d,x)   NOP #i      ISC (d,x)   CPX d       SBC d       INC d       ISC d
+0xe8   INX         SBC #i      NOP         SBC #i      CPX a       SBC a       INC a       ISC a
+0xf0   BEQ *+d     SBC (d),y   STP         ISC (d),y   NOP d,x     SBC d,x     INC d,x     ISC d,x
+0xf8   SED         SBC a,y     NOP         ISC a,y     NOP a,x     SBC a,x     INC a,x     ISC a,x
 */
     static std::array<void*, 256> inst_lut = {
         &&BRK_IMM, &&ORA_INX, &&STP_IMP, &&SLO_INX, &&NOP_ZPA, &&ORA_ZPA, &&ASL_ZPA, &&SLO_ZPA,
@@ -234,11 +250,11 @@ SED         SBC a,y     NOP         ISC a,y     NOP a,x     SBC a,x     INC a,x 
     DECODE_IMP(NOP, {})
     DECODE_ZPA(BIT, READ8, { cpu.SetNZ(value); cpu.SetFlag<CPU::Flags::V>((value & (1 << 6)) != 0); })
     DECODE_ABS(BIT, READ8, { cpu.SetNZ(value); cpu.SetFlag<CPU::Flags::V>((value & (1 << 6)) != 0); })
-    DECODE_IMM(BRK, NOOP, { cpu.SetFlag<CPU::Flags::I>(true); goto END; })
+    DECODE_IMM(BRK, NOOP, { cpu.pending_irq = true; goto END; })
     DECODE_IMP(RTS, {
         u16 addr = cpu.PopStack();
         addr |= cpu.PopStack() << 8;
-        cpu.PC = addr;
+        cpu.PC = addr + 1;
     })
     DECODE_IMP(RTI, {
         cpu.P = cpu.PopStack();
@@ -275,8 +291,8 @@ SED         SBC a,y     NOP         ISC a,y     NOP a,x     SBC a,x     INC a,x 
     DECODE_REL(BVC, ((cpu.P & CPU::Flags::V) == 0))
     DECODE_REL(BVS, ((cpu.P & CPU::Flags::V) != 0))
     DECODE_ABS(JSR, NOOP, {
-        cpu.PushStack(cpu.PC >> 8 );
-        cpu.PushStack(cpu.PC & 0xff );
+        cpu.PushStack((cpu.PC-1) >> 8 );
+        cpu.PushStack((cpu.PC-1) & 0xff );
         cpu.PC = operand;
     })
     DECODE_ABS(JMP, NOOP, {
@@ -284,8 +300,16 @@ SED         SBC a,y     NOP         ISC a,y     NOP a,x     SBC a,x     INC a,x 
     })
     JMP_IND: {
         operand = bus.Read16(cpu.PC);
-        operand = bus.Read16(operand);
+
+        if ((operand & 0xFF) == 0xFF) {
+            u8 lo = bus.Read8(operand);
+            u8 hi = bus.Read8(operand - 0xFF);
+            operand =  (lo | hi << 8);
+        } else {
+            operand = bus.Read16(operand);
+        }
         cpu.PC = operand;
+        GOTO_NEXT(0)
     }
 
     // ALU OPCODES
@@ -381,7 +405,7 @@ SED         SBC a,y     NOP         ISC a,y     NOP a,x     SBC a,x     INC a,x 
     DECODE_ZPA(LDY, READ8, code) \
     DECODE_ZPX(LDY, READ8, code)
     LDY_OP({
-       cpu.Y = bus.Read8(value);
+       cpu.Y = value;
        cpu.SetNZ(value);
     })
 

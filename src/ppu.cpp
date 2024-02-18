@@ -6,23 +6,26 @@
 
 void PPU::CatchUp() {
     s64 cycles_to_run = timing.cycle_count - current_cycle;
-    constexpr auto CYCLES_PER_SCANLINE = 341 * Scheduler::NTSC_PPU_CLOCK_DIVIDER;
     while (cycles_to_run > 0) {
         if (cycles_to_run > CYCLES_PER_SCANLINE) {
             RunScanline();
             cycles_to_run -= CYCLES_PER_SCANLINE;
+        } else {
+            Tick();
         }
+        cycles_to_run = timing.cycle_count - current_cycle;
     }
 }
 
 void PPU::Tick() {
-
+    current_cycle += 4;
 }
 
 void PPU::RunScanline() {
     // Cycle 0
     // Idle
 //    current_cycle += 4;
+    current_cycle += CYCLES_PER_SCANLINE;
 
     // Cycle 1 - 256
 #pragma unroll
