@@ -7,11 +7,14 @@
 #include <vector>
 
 #include "common.h"
+#include "ppu.h"
 #include "virtmem.h"
+
+class INES;
 
 class Bus {
 public:
-    Bus(std::span<u8> prg, std::span<u8> chr);
+    Bus(const INES& header, std::span<u8> prg, std::span<u8> chr, PPU& ppu);
 
     // TODO better open bus handling
     inline u8 OpenBus() const {
@@ -39,6 +42,38 @@ public:
         fakemmu.cpumem[bank][offset] = value;
     }
 
+    constexpr inline bool CheckedRead8(u16 addr, u8& out) {
+        const auto bank = addr / FakeVirtualMemory::BANK_WINDOW;
+        if ((fakemmu.cputag[bank] & FakeVirtualMemory::Tag::MMIO) != 0) {
+            return false;
+        }
+        const auto offset = addr & (FakeVirtualMemory::BANK_WINDOW-1);
+        out = fakemmu.cpumem[bank][offset];
+        return true;
+    }
+
+    constexpr inline bool CheckedRead16(u16 addr, u16& out) {
+        u8 lo, hi;
+        if (!CheckedRead8(addr, lo) || !CheckedRead8(addr, hi)) {
+            return false;
+        }
+        out = (lo) | ((u16)hi << 8);
+        return true;
+    }
+
+    constexpr inline bool CheckedWrite8(u16 addr, u8 value) {
+        const auto bank = addr / FakeVirtualMemory::BANK_WINDOW;
+        const auto tag = fakemmu.cputag[bank];
+        if ((tag & FakeVirtualMemory::Tag::MMIO) != 0) {
+            return false;
+        }
+        const auto offset = addr & (FakeVirtualMemory::BANK_WINDOW-1);
+        // Dont write if not mapped as writable, but return true since it is mapped
+        if ((tag & FakeVirtualMemory::Tag::Write) != 0)
+            fakemmu.cpumem[bank][offset] = value;
+        return true;
+    }
+
     inline u8 ReadVRAM8(u16 addr) {
         const auto bank = addr / FakeVirtualMemory::BANK_WINDOW;
         const auto offset = addr & (FakeVirtualMemory::BANK_WINDOW-1);
@@ -53,16 +88,24 @@ public:
         fakemmu.ppumem[bank][offset] = value;
     }
 
+    inline u8 ReadPPURegister(u16 addr) {
+        return ppu.ReadRegister(addr);
+    }
+    inline void WritePPURegister(u16 addr, u8 value) {
+        ppu.WriteRegister(addr, value);
+    }
+
     // Latest vram address from the PPU increment
     u16 vram_addr{};
 
 private:
 
 //    void InitHostMMU(std::span<u8> prg, std::span<u8> chr);
-    void InitFakeMMU(std::span<u8> prg, std::span<u8> chr);
+//    void InitFakeMMU(std::span<u8> prg, std::span<u8> chr);
 
-    HostVirtualMemory hostmmu{};
+    //HostVirtualMemory hostmmu{};
     FakeVirtualMemory fakemmu{};
+    PPU& ppu;
 
     // CPU memory cpumem backing
 //    std::span<u8> ciram;

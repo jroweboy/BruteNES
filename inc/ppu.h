@@ -115,19 +115,17 @@ VSO. ....
         };
     };
 
-
-
     PPUCTRL ctrl{};
     PPUMASK mask{};
     PPUSTATUS status{};
 
-    u8 oamaddr;
+    u8 oamaddr{};
 
     [[nodiscard]] inline bool RenderingEnabled() const {
         return mask.bg_enable || mask.sp_enable;
     }
 
-    u8* LockBuffer() {
+    u16* LockBuffer() {
         std::unique_lock<std::mutex> lock(swap_mutex);
         std::swap(front_buffer, back_buffer);
         return front_buffer;
@@ -166,15 +164,15 @@ private:
     u16 scanline{};
     u16 cycle{};
 
-    std::array<u8, 256 * 240> pixel_buffer1;
-    std::array<u8, 256 * 240> pixel_buffer2;
-    std::array<u8, 256 * 240> pixel_buffer3;
+    std::array<u16, 256 * 240> pixel_buffer1{};
+    std::array<u16, 256 * 240> pixel_buffer2{};
+    std::array<u16, 256 * 240> pixel_buffer3{};
 
-    std::mutex swap_mutex;
-    u8* front_buffer{};
-    u8* back_buffer{};
-    u8* rendering_to{};
-    std::array<u8*, 3> buffers = {pixel_buffer1.data(), pixel_buffer2.data(), pixel_buffer3.data()};
+    std::mutex swap_mutex{};
+    u16* front_buffer = pixel_buffer1.data();
+    u16* back_buffer = pixel_buffer2.data();
+    u16* rendering_to = pixel_buffer3.data();
+    std::array<u16*, 3> buffers = {pixel_buffer1.data(), pixel_buffer2.data(), pixel_buffer3.data()};
 };
 
 

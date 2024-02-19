@@ -42,9 +42,14 @@ std::optional<INES> INES::ParseHeader(std::span<u8> header) {
     bool battery = (header[6] & 0b0000'0010) != 0;
     bool trainer = (header[6] & 0b0000'0100) != 0;
 
+    // CHR RAM
+    s32 parsed_chr_size = -1;
+
     u16 mapper = (header[7] & 0xf0) | ((header[6] & 0xf0) >> 4);
     u8 submapper = 0;
     if (nes20) {
+        parsed_chr_size = header[11] & 0x0F;
+        parsed_chr_size = parsed_chr_size == 0 ? 0 : 128 * (s32)std::pow(2, parsed_chr_size - 1);
         mapper |= (header[8] & 0x0f) << 8;
         submapper = (header[8] & 0xf0) >> 4;
         prg_size |= (header[9] & 0x0f) << 8;
@@ -53,5 +58,8 @@ std::optional<INES> INES::ParseHeader(std::span<u8> header) {
 
     prg_size *= 0x4000;
     chr_size *= 0x2000;
-    return INES{prg_size, chr_size, mapper, submapper, mirroring, battery, trainer};
+    u32 defaultRamSize = 0x2000;
+    u32 chr_ram_size = parsed_chr_size >= 0 ? parsed_chr_size : defaultRamSize;
+
+    return INES{prg_size, chr_size, mapper, submapper, mirroring, battery, trainer, chr_ram_size};
 }

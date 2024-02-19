@@ -5,8 +5,8 @@
 
 void CPU::Reset() {
     // https://www.nesdev.org/wiki/CPU_power_up_state
-//    PC = bus.Read16(0xfffc);
-    PC = 0xc000;
+    PC = bus.Read16(ResetVector);
+//    PC = 0xc000;
     SP = 0xfd;
     P = 0x34;
     A = 0;
@@ -39,17 +39,44 @@ static std::array<u8, 256> cycle_lut = {
     /*0xF0*/ 2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7,
 };
 
+
 // I'm so sorry.
 #define NOOP(inner) ;
 #define NOOP8(inner) u8 value = inner;
 #define NOOP16(inner) u16 value = inner;
-#define READ8(inner) u8 value = bus.Read8(inner);
+//#define READ8(inner) u8 value = bus.Read8(inner);
 
-#define FETCH_NEXT { \
+#define CHECKED_READ_8(inner) u8 value; {   \
+    if (!bus.CheckedRead8(inner, value)) {  \
+        if (current_cycles == 0 && inner >= 0x2000 && inner < 0x4000) { \
+            value = bus.ReadPPURegister(inner); \
+        } else {                            \
+            goto MMIO;                      \
+        }                                   \
+    }                                       \
+}
+
+#define CHECKED_WRITE_8(inner, value) {   \
+    if (!bus.CheckedWrite8(inner, value)) {  \
+        if (current_cycles == 0 && inner >= 0x2000 && inner < 0x4000) { \
+            bus.WritePPURegister(inner, value); \
+        } else {                            \
+            goto MMIO;                      \
+        }                                   \
+    }                                       \
+}
+
+#define FETCH_NEXT {                        \
         u8 prev_idx = inst_idx;             \
-        inst_idx = bus.Read8(cpu.PC++);                            \
-        SPDLOG_INFO("{:2X} {:X} -> {:2X} @ {:4X}", prev_idx, operand, inst_idx, cpu.PC);    \
+        {                                   \
+            CHECKED_READ_8(cpu.PC)              \
+            inst_idx = value;                   \
+        }                                   \
+        SPDLOG_INFO("{:2X} {:X} -> {:2X} @ {:4X}", prev_idx, operand, inst_idx, cpu.PC); \
+        prev_pc = cpu.PC++;                 \
     }
+
+
 #define PAGE_CROSS_CHECK(reg) (((operand + cpu.reg) & 0xff) < cpu.reg)
 
 #define GOTO_NEXT(page_crossed) {                                  \
@@ -59,6 +86,12 @@ static std::array<u8, 256> cycle_lut = {
         FETCH_NEXT                                                 \
         goto* inst_lut[inst_idx];                                  \
     }
+
+#define COMPARE_OP(reg) { \
+    cpu.SetFlag<CPU::Flags::C>(reg >= value);                      \
+    cpu.SetFlag<CPU::Flags::Z>(reg == 0);                          \
+    cpu.SetFlag<CPU::Flags::N>(((reg - value) & 0x80) != 0 );      \
+}
 
 #define DECODE_REL(name, condition)                                \
 name##_REL: {                                                      \
@@ -163,7 +196,8 @@ u32 Interpreter::RunBlock(u32 max_cycles) {
     u32 current_cycles = 0;
     u16 operand;
 //    u16 result;
-    u8 inst_idx;
+    u16 prev_pc{};
+    u8 inst_idx{};
 
 /*
 0x00   BRK         ORA (d,x)   STP         SLO (d,x)   NOP d       ORA d       ASL d       SLO d
@@ -240,8 +274,8 @@ u32 Interpreter::RunBlock(u32 max_cycles) {
 
     // Control OPCODES
     DECODE_IMP(NOP, {})
-    DECODE_ZPA(BIT, READ8, { cpu.SetNZ(value); cpu.SetFlag<CPU::Flags::V>((value & (1 << 6)) != 0); })
-    DECODE_ABS(BIT, READ8, { cpu.SetNZ(value); cpu.SetFlag<CPU::Flags::V>((value & (1 << 6)) != 0); })
+    DECODE_ZPA(BIT, CHECKED_READ_8, { cpu.SetNZ(value); cpu.SetFlag<CPU::Flags::V>((value & (1 << 6)) != 0); })
+    DECODE_ABS(BIT, CHECKED_READ_8, { cpu.SetNZ(value); cpu.SetFlag<CPU::Flags::V>((value & (1 << 6)) != 0); })
     DECODE_IMM(BRK, NOOP, { cpu.pending_irq = true; goto END; })
     DECODE_IMP(RTS, {
         u16 addr = cpu.PopStack();
@@ -307,13 +341,13 @@ u32 Interpreter::RunBlock(u32 max_cycles) {
     // ALU OPCODES
 #define ALU_OP(name, code) \
     DECODE_IMM(name, NOOP8, code) \
-    DECODE_ABS(name, READ8, code) \
-    DECODE_ABX(name, READ8, code, PAGE_CROSS_CHECK(X)) \
-    DECODE_ABY(name, READ8, code, PAGE_CROSS_CHECK(Y)) \
-    DECODE_INX(name, READ8, code) \
-    DECODE_INY(name, READ8, code, PAGE_CROSS_CHECK(Y)) \
-    DECODE_ZPA(name, READ8, code) \
-    DECODE_ZPX(name, READ8, code)
+    DECODE_ABS(name, CHECKED_READ_8, code) \
+    DECODE_ABX(name, CHECKED_READ_8, code, PAGE_CROSS_CHECK(X)) \
+    DECODE_ABY(name, CHECKED_READ_8, code, PAGE_CROSS_CHECK(Y)) \
+    DECODE_INX(name, CHECKED_READ_8, code) \
+    DECODE_INY(name, CHECKED_READ_8, code, PAGE_CROSS_CHECK(Y)) \
+    DECODE_ZPA(name, CHECKED_READ_8, code) \
+    DECODE_ZPX(name, CHECKED_READ_8, code)
 
     ALU_OP(ORA, {
         cpu.A |= value;
@@ -348,7 +382,7 @@ u32 Interpreter::RunBlock(u32 max_cycles) {
     DECODE_ZPA(STA, NOOP, code) \
     DECODE_ZPX(STA, NOOP, code)
     STA_OP({
-        bus.Write8(operand, cpu.A);
+        CHECKED_WRITE_8(operand, cpu.A);
     })
 
 #define STX_OP(code) \
@@ -356,7 +390,7 @@ u32 Interpreter::RunBlock(u32 max_cycles) {
     DECODE_ZPY(STX, NOOP, code) \
     DECODE_ABS(STX, NOOP, code)
     STX_OP({
-       bus.Write8(operand, cpu.X);
+        CHECKED_WRITE_8(operand, cpu.X);
     })
 
 #define STY_OP(code) \
@@ -364,7 +398,7 @@ u32 Interpreter::RunBlock(u32 max_cycles) {
     DECODE_ZPX(STY, NOOP, code) \
     DECODE_ABS(STY, NOOP, code)
     STY_OP({
-        bus.Write8(operand, cpu.Y);
+        CHECKED_WRITE_8(operand, cpu.Y);
     })
 
     ALU_OP(LDA, {
@@ -372,8 +406,7 @@ u32 Interpreter::RunBlock(u32 max_cycles) {
         cpu.SetNZ(value);
     })
     ALU_OP(CMP, {
-        cpu.P = (cpu.P & ~CPU::Flags::C) | (cpu.A >= value);
-        cpu.SetNZ(value);
+        COMPARE_OP(cpu.A)
     })
     ALU_OP(SBC, {
 //        u16 result = (u16)cpu.A + (u16)(value^0xff) + ((cpu.P & CPU::Flags::C) != 0);
@@ -387,10 +420,10 @@ u32 Interpreter::RunBlock(u32 max_cycles) {
     })
 #define LDX_OP(code) \
     DECODE_IMM(LDX, NOOP8, code) \
-    DECODE_ABS(LDX, READ8, code) \
-    DECODE_ABY(LDX, READ8, code, PAGE_CROSS_CHECK(Y)) \
-    DECODE_ZPA(LDX, READ8, code) \
-    DECODE_ZPY(LDX, READ8, code)
+    DECODE_ABS(LDX, CHECKED_READ_8, code) \
+    DECODE_ABY(LDX, CHECKED_READ_8, code, PAGE_CROSS_CHECK(Y)) \
+    DECODE_ZPA(LDX, CHECKED_READ_8, code) \
+    DECODE_ZPY(LDX, CHECKED_READ_8, code)
     LDX_OP({
        cpu.X = value;
        cpu.SetNZ(value);
@@ -398,10 +431,10 @@ u32 Interpreter::RunBlock(u32 max_cycles) {
 
 #define LDY_OP(code) \
     DECODE_IMM(LDY, NOOP8, code) \
-    DECODE_ABS(LDY, READ8, code) \
-    DECODE_ABX(LDY, READ8, code, PAGE_CROSS_CHECK(X)) \
-    DECODE_ZPA(LDY, READ8, code) \
-    DECODE_ZPX(LDY, READ8, code)
+    DECODE_ABS(LDY, CHECKED_READ_8, code) \
+    DECODE_ABX(LDY, CHECKED_READ_8, code, PAGE_CROSS_CHECK(X)) \
+    DECODE_ZPA(LDY, CHECKED_READ_8, code) \
+    DECODE_ZPX(LDY, CHECKED_READ_8, code)
     LDY_OP({
        cpu.Y = value;
        cpu.SetNZ(value);
@@ -409,27 +442,25 @@ u32 Interpreter::RunBlock(u32 max_cycles) {
 
 #define CPR_OP(name, code) \
     DECODE_IMM(name, NOOP8, code) \
-    DECODE_ABS(name, READ8, code) \
-    DECODE_ZPA(name, READ8, code)
+    DECODE_ABS(name, CHECKED_READ_8, code) \
+    DECODE_ZPA(name, CHECKED_READ_8, code)
     CPR_OP(CPX, {
-        cpu.P = (cpu.P & ~CPU::Flags::C) | (cpu.X >= value);
-        cpu.SetNZ(value);
+        COMPARE_OP(cpu.X)
     })
     CPR_OP(CPY, {
-        cpu.P = (cpu.P & ~CPU::Flags::C) | (cpu.Y >= value);
-        cpu.SetNZ(value);
+        COMPARE_OP(cpu.Y)
     })
 
     // RMW OPCODES
 
 #define RMW_OP(name, code) \
-DECODE_ABS(name, READ8, code) \
-DECODE_ABX(name, READ8, code, 0) \
-DECODE_ZPA(name, READ8, code) \
-DECODE_ZPX(name, READ8, code)
+DECODE_ABS(name, CHECKED_READ_8, code) \
+DECODE_ABX(name, CHECKED_READ_8, code, 0) \
+DECODE_ZPA(name, CHECKED_READ_8, code) \
+DECODE_ZPX(name, CHECKED_READ_8, code)
     RMW_OP(ASL, {
         u16 result = (u16)value << 1;
-        bus.Write8(operand, (u8)result);
+        CHECKED_WRITE_8(operand, (u8)result);
         cpu.SetFlag<CPU::Flags::C>(result > 0xFF);
         cpu.SetNZ(result);
     })
@@ -441,7 +472,7 @@ DECODE_ZPX(name, READ8, code)
     })
     RMW_OP(ROL, {
         u16 result = ((u16)value << 1) | (cpu.P & CPU::Flags::C);
-        bus.Write8(operand, (u8)result);
+        CHECKED_WRITE_8(operand, (u8)result);
         cpu.SetFlag<CPU::Flags::C>(result > 0xFF);
         cpu.SetNZ(result);
     })
@@ -453,7 +484,7 @@ DECODE_ZPX(name, READ8, code)
     })
     RMW_OP(LSR, {
         u8 result = value >> 1;
-        bus.Write8(operand, (u8)result);
+        CHECKED_WRITE_8(operand, (u8)result);
         cpu.SetFlag<CPU::Flags::C>((value & 1) == 1);
         cpu.SetNZ(result);
     })
@@ -465,7 +496,7 @@ DECODE_ZPX(name, READ8, code)
     })
     RMW_OP(ROR, {
         u8 result = (value >> 1) | ((cpu.P & CPU::Flags::C) << 7);
-        bus.Write8(operand, (u8)result);
+        CHECKED_WRITE_8(operand, (u8)result);
         cpu.SetFlag<CPU::Flags::C>((value & 1) == 1);
         cpu.SetNZ(result);
     })
@@ -476,7 +507,7 @@ DECODE_ZPX(name, READ8, code)
         cpu.SetNZ(result);
     })
     RMW_OP(DEC, {
-        bus.Write8(operand, (u8)--value);
+        CHECKED_WRITE_8(operand, (u8)--value);
         cpu.SetNZ(value);
     })
     DECODE_IMP(DEX, {
@@ -488,7 +519,7 @@ DECODE_ZPX(name, READ8, code)
         cpu.SetNZ(cpu.Y);
     })
     RMW_OP(INC, {
-        bus.Write8(operand, (u8)++value);
+        CHECKED_WRITE_8(operand, (u8)++value);
         cpu.SetNZ(value);
     })
     DECODE_IMP(INX, {
@@ -537,6 +568,11 @@ DECODE_ZPX(name, READ8, code)
     ALU_OP(ISC, {})
     ALU_OP(RLA, {})
 
+MMIO:
+    // We hit an MMIO register and the PPU isn't caught up,
+    // so reverse back to the current instruction and catch up the other devices
+    // and then next time it runs, we can read through to the device
+    cpu.PC = prev_pc;
 END:
     return current_cycles;
 }

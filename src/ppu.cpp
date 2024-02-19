@@ -114,17 +114,30 @@ void PPU::CatchUp() {
         } else {
             Tick();
         }
+        if (cycle == 341) {
+            cycle = 0;
+            scanline++;
+        }
+        if (scanline == 262) {
+            scanline = 0;
+        }
         cycles_to_run = timing.cycle_count - current_cycle;
     }
 }
 
 void PPU::Tick() {
+    if (scanline == 241 && cycle == 1) {
+        status.vblank = 1;
+    }
     current_cycle += 4;
     cycle += 1;
 }
 
 // High level scanline render implementation for speed
 void PPU::RunFastScanline() {
+    if (scanline == 241) {
+        status.vblank = 1;
+    }
     // Cycle 0
     // Idle
 //    current_cycle += 4;

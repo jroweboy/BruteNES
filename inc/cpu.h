@@ -10,6 +10,7 @@
 #include "common.h"
 
 class CPU;
+class PPU;
 
 class Interpreter {
 public:
@@ -19,11 +20,13 @@ public:
 private:
     Bus& bus;
     CPU& cpu;
-
 };
 
 class CPU {
 public:
+    constexpr static u16 NMIVector = 0xfffa;
+    constexpr static u16 ResetVector = 0xfffc;
+    constexpr static u16 IRQVector = 0xfffe;
     CPU() = delete;
     explicit CPU(Bus& bus) : bus(bus), interpreter(bus, *this) { Reset(); }
 

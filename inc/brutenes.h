@@ -20,17 +20,29 @@ public:
     BruteNES() = delete;
     static std::unique_ptr<BruteNES> Init(std::vector<u8>&& romdata);
 
+    void RunLoop();
+
     void ColdBoot();
     void RunFrame();
 
+    u16* GetFrame();
+
+    std::atomic<bool> stop_signal{};
+    bool paused = false;
+    std::mutex pause_mutex{};
+    std::condition_variable pause_cv{};
+
 private:
-    explicit BruteNES(std::vector<u8>&& rom, std::span<u8> prg, std::span<u8> chr);
+    explicit BruteNES(std::vector<u8>&& rom, INES header, std::span<u8> prg, std::span<u8> chr);
     Bus bus;
     CPU cpu;
     PPU ppu;
+    INES header;
     Scheduler timing;
 
     std::vector<u8> rom;
+    // When paused, keep the previous frame around so we can keep redrawing it
+    u16* prev_frame{};
 };
 
 // Wraps the emu instance in a thread since macos still doesn't have jthread
@@ -41,12 +53,16 @@ public:
     void Start();
     void Pause();
     void Stop();
+
+    u16* GetFrame() {
+        return nes->GetFrame();
+    }
+
 private:
-    EmuThread(std::unique_ptr<BruteNES>&& nes) : nes(std::move(nes)) {}
+    explicit EmuThread(std::unique_ptr<BruteNES>&& nes) : nes(std::move(nes)) {}
 
     std::unique_ptr<BruteNES> nes;
-    std::thread th;
-    std::atomic_bool stop_signal;
+    std::thread th{};
 };
 
 #endif //BRUTENES_BRUTENES_H

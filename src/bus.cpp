@@ -2,10 +2,12 @@
 #include <range/v3/view.hpp>
 
 #include "bus.h"
+#include "ines.h"
 
-Bus::Bus(std::span<u8> prg, std::span<u8> chr) {
+
+Bus::Bus(const INES& header, std::span<u8> prg, std::span<u8> chr, PPU& ppu) : ppu(ppu) {
     fakemmu.InitCPUMap(prg);
-    fakemmu.InitPPUMap(chr);
+    fakemmu.InitPPUMap(chr, header);
 //    InitFakeMMU(prg, chr);
 //    InitHostMMU(prg, chr);
 }
