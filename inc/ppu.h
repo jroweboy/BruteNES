@@ -136,6 +136,9 @@ VSO. ....
         std::swap(back_buffer, rendering_to);
     }
 
+    // Internal scanline cycle count
+    u16 scanline{};
+    u16 cycle{};
 
 private:
 
@@ -159,10 +162,6 @@ private:
     Bus& bus;
     Scheduler& timing;
     u64 current_cycle{};
-
-    // Internal scanline cycle count
-    u16 scanline{};
-    u16 cycle{};
 
     std::array<u16, 256 * 240> pixel_buffer1{};
     std::array<u16, 256 * 240> pixel_buffer2{};

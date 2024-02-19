@@ -106,6 +106,20 @@ void PPU::OAMDMA() {
 }
 
 void PPU::CatchUp() {
+    // Before running apply any cached updates
+    while (!bus.ppu_register_cache.empty()) {
+        auto& item = bus.ppu_register_cache.front();
+        if (item.is_write) {
+            WriteRegister(item.addr, item.value);
+        } else {
+            // This is a write cache, so right now we don't add reads.
+            // Later if we start scanning for reading $2002 for clearing
+            // the write toggle (IE: the value read from ppustatus is unused)
+            // then we could cache that read.
+            // ReadRegister(item.addr);
+        }
+        bus.ppu_register_cache.pop();
+    }
     s64 cycles_to_run = timing.cycle_count - current_cycle;
     while (cycles_to_run > 0) {
         // We can't use the fast scanline impl if we aren't on cycle 0
@@ -129,6 +143,17 @@ void PPU::Tick() {
     if (scanline == 241 && cycle == 1) {
         status.vblank = 1;
     }
+
+    // Cycle 0
+    // Idle
+
+    // Cycle 1 - 256
+
+    // Cycle 257-320
+
+    // Cycle 321-336
+
+    // Cycle 337-340
     current_cycle += 4;
     cycle += 1;
 }
@@ -138,22 +163,34 @@ void PPU::RunFastScanline() {
     if (scanline == 241) {
         status.vblank = 1;
     }
-    // Cycle 0
-    // Idle
-//    current_cycle += 4;
+    if (scanline == 0) {
+        status.vblank = 0;
+    }
 
     OAMEvaluation();
 
+    // Shortcut: Copy the entire horizontal strip of tile ids from the nametable
+    // Load the nametable strip for this address, including across the mirror
+    std::array<u8, 0x40> nmt_strip{};
+    std::array<u8, 0x10> atr_strip{};
+    // Intentionally strip the bottom 5 bits since we want the start of the row
+    u16 tile_strip_addr = (v & 0x0F20);
+    u16 tile_strip_attr = 0x3C0 | ((v >> 4) & 0x38);
+    u8* left_nmt = bus.DirectVRAMPageAccess(0x2000 | tile_strip_addr);
+    u8* right_nmt = bus.DirectVRAMPageAccess(0x2400 | tile_strip_addr);
+    for (int i = 0; i < 0x20; i++) {
+        nmt_strip[i] = left_nmt[i];
+        nmt_strip[i + 0x20] = right_nmt[i];
+    }
+    for (int i = 0; i < 0x8; i++) {
+        atr_strip[i] = left_nmt[tile_strip_attr | i];
+        atr_strip[i + 0x08] = right_nmt[tile_strip_attr | i];
+    }
+
+    
+
     current_cycle += CYCLES_PER_SCANLINE;
     scanline++;
-
-    // Cycle 1 - 256
-
-    // Cycle 257-320
-
-    // Cycle 321-336
-
-    // Cycle 337-340
 
 }
 
@@ -161,6 +198,8 @@ void PPU::OAMEvaluation() {
     if (!mask.sp_enable) {
         return;
     }
+
+
 
 }
 

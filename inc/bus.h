@@ -4,6 +4,7 @@
 #define BRUTENES_BUS_H
 
 #include <array>
+#include <queue>
 #include <vector>
 
 #include "common.h"
@@ -14,6 +15,13 @@ class INES;
 
 class Bus {
 public:
+
+    struct RegisterCacheEntry {
+        u16 addr;
+        u8 value;
+        bool is_write;
+    };
+
     Bus(const INES& header, std::span<u8> prg, std::span<u8> chr, PPU& ppu);
 
     // TODO better open bus handling
@@ -79,6 +87,12 @@ public:
         const auto offset = addr & (FakeVirtualMemory::BANK_WINDOW-1);
         return fakemmu.ppumem[bank][offset];
     }
+
+    inline u8* DirectVRAMPageAccess(u16 addr) {
+        const auto bank = addr / FakeVirtualMemory::BANK_WINDOW;
+        return fakemmu.ppumem[bank];
+    }
+
     inline u16 ReadVRAM16(u16 addr) {
         return Read8(addr + 1) << 8 | Read8(addr);
     }
@@ -91,12 +105,33 @@ public:
     inline u8 ReadPPURegister(u16 addr) {
         return ppu.ReadRegister(addr);
     }
-    inline void WritePPURegister(u16 addr, u8 value) {
-        ppu.WriteRegister(addr, value);
+    inline void WritePPURegister(u16 addr, u8 value, bool use_ppu_cache) {
+        if (use_ppu_cache) {
+            ppu_register_cache.emplace(RegisterCacheEntry{ addr, value, true });
+        } else {
+            ppu.WriteRegister(addr, value);
+        }
+    }
+
+    inline u8 ReadAPURegister(u16 addr) {
+        if (addr == 0x4016 || addr == 0x4017) {
+            // Joy read unimplemented
+            return 0;
+        }
+        // Unimplemented $4015 for now
+        return OpenBus();
+    }
+    inline void WriteAPURegister(u16 addr, u8 value, bool cache) {
+        if (addr == 0x4016 || addr == 0x4017) {
+            // Joy strobe unimplemented
+        }
+        // Unimplemented APU writes
     }
 
     // Latest vram address from the PPU increment
     u16 vram_addr{};
+
+    std::queue<RegisterCacheEntry> ppu_register_cache{};
 
 private:
 

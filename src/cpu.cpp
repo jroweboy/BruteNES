@@ -14,8 +14,8 @@ void CPU::Reset() {
     Y = 0;
 }
 
-u32 CPU::RunFor(u64 cycles) {
-    u32 count = interpreter.RunBlock(cycles);
+u32 CPU::RunFor(u64 cycles, bool use_ppu_cache) {
+    u32 count = interpreter.RunBlock(cycles, use_ppu_cache);
     return count;
 }
 
@@ -47,19 +47,34 @@ static std::array<u8, 256> cycle_lut = {
 //#define READ8(inner) u8 value = bus.Read8(inner);
 
 #define CHECKED_READ_8(inner) u8 value; {   \
-    if (!bus.CheckedRead8(inner, value)) {  \
-        if (current_cycles == 0 && inner >= 0x2000 && inner < 0x4000) { \
+    if (!bus.CheckedRead8(inner, value)) {       \
+        if (current_cycles != 0)                 \
+            goto MMIO;                           \
+        if (inner >= 0x2000 && inner < 0x4000) { \
             value = bus.ReadPPURegister(inner); \
-        } else {                            \
-            goto MMIO;                      \
-        }                                   \
-    }                                       \
+        } else if (inner >= 0x4000 && inner < 0x4018) { \
+            value = bus.ReadAPURegister(inner); \
+        } else {                                \
+            /* TODO mapper MMIO */              \
+            value = bus.OpenBus();              \
+        }                                       \
+    }                                           \
 }
 
 #define CHECKED_WRITE_8(inner, value) {   \
     if (!bus.CheckedWrite8(inner, value)) {  \
-        if (current_cycles == 0 && inner >= 0x2000 && inner < 0x4000) { \
-            bus.WritePPURegister(inner, value); \
+        if (inner >= 0x2000 && inner < 0x4000) { \
+            if (!use_ppu_cache && current_cycles != 0) { \
+                /* write can't happen until the PPU is caught up*/ \
+                goto MMIO;                       \
+            }                                    \
+            bus.WritePPURegister(inner, value, use_ppu_cache); \
+        } else if (inner >= 0x4000 && inner < 0x4018) { \
+            /*the only write we can't support is starting dmc*/ \
+            if ((value & 0x10) && inner == 0x4015) { \
+                goto MMIO;                         \
+            }                                      \
+            bus.WriteAPURegister(value, inner, true); \
         } else {                            \
             goto MMIO;                      \
         }                                   \
@@ -72,7 +87,7 @@ static std::array<u8, 256> cycle_lut = {
             CHECKED_READ_8(cpu.PC)              \
             inst_idx = value;                   \
         }                                   \
-        SPDLOG_INFO("{:2X} {:X} -> {:2X} @ {:4X}", prev_idx, operand, inst_idx, cpu.PC); \
+        /*SPDLOG_INFO("{:2X} {:X} -> {:2X} @ {:4X}", prev_idx, operand, inst_idx, cpu.PC);*/ \
         prev_pc = cpu.PC++;                 \
     }
 
@@ -191,12 +206,11 @@ name##_ZPY: {                                    \
         GOTO_NEXT(0)                             \
     }
 
-u32 Interpreter::RunBlock(u32 max_cycles) {
+u32 Interpreter::RunBlock(u32 max_cycles, bool use_ppu_cache) {
 
     u32 current_cycles = 0;
     u16 operand;
 //    u16 result;
-    u16 prev_pc{};
     u8 inst_idx{};
 
 /*
@@ -573,6 +587,7 @@ MMIO:
     // so reverse back to the current instruction and catch up the other devices
     // and then next time it runs, we can read through to the device
     cpu.PC = prev_pc;
+    SPDLOG_DEBUG("MMIO register read, resetting PC");
 END:
     return current_cycles;
 }

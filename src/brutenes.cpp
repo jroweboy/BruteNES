@@ -27,8 +27,18 @@ void BruteNES::RunFrame() {
     // run from the start of vblank until the start of the next vblank
     u32 current_frame = timing.frame_count;
     ppu.SwapBuffer();
-    while (true) {
-        u32 count = cpu.RunFor(timing.CPUCyclesTillInterrupt());
+    while (!stop_signal.load(std::memory_order_acquire)) {
+        u32 estimate = timing.CPUCyclesTillInterrupt();
+        bool use_ppu_cache = false;
+        if (ppu.status.vblank) {
+            // If we are in vblank, then its safe to use the write cache
+            s64 estimate_adjustment = (s64)20 * PPU::CYCLES_PER_SCANLINE - (ppu.scanline * PPU::CYCLES_PER_SCANLINE + ppu.cycle);
+            if (estimate_adjustment > 0) {
+                estimate = estimate_adjustment;
+                use_ppu_cache = true;
+            }
+        }
+        u32 count = cpu.RunFor(estimate, use_ppu_cache);
         timing.AddCPUCycles(count);
         ppu.CatchUp();
 

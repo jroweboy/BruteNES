@@ -16,10 +16,12 @@ class Interpreter {
 public:
     Interpreter(Bus& bus, CPU& cpu) : bus(bus), cpu(cpu) {}
 
-    u32 RunBlock(u32 max_cycles);
+    u32 RunBlock(u32 max_cycles, bool use_ppu_cache);
 private:
     Bus& bus;
     CPU& cpu;
+
+    u16 prev_pc{};
 };
 
 class CPU {
@@ -62,7 +64,7 @@ public:
     void Reset();
 
     // Runs until the expected cycle count or MMIO page is accessed
-    u32 RunFor(u64 cycles);
+    u32 RunFor(u64 cycles, bool use_ppu_cache);
 
     u16 PC{};
     u8 SP{};

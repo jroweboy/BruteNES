@@ -114,6 +114,17 @@ void FakeVirtualMemory::InitPPUMap(std::span<u8> rawchr, const INES& header) {
         pputag[0x2c00 / banksize] = Tag::Read | Tag::Write;
         break;
     }
+    // Setup the mirrors
+    ppumem[0x3000 / banksize] = ppumem[0x2000 / banksize];
+    ppumem[0x3400 / banksize] = ppumem[0x2400 / banksize];
+    ppumem[0x3800 / banksize] = ppumem[0x2800 / banksize];
+    ppumem[0x3c00 / banksize] = ppumem[0x2c00 / banksize];
+    pputag[0x3000 / banksize] = pputag[0x2000 / banksize];
+    pputag[0x3400 / banksize] = pputag[0x2400 / banksize];
+    pputag[0x3800 / banksize] = pputag[0x2800 / banksize];
+    pputag[0x3c00 / banksize] = pputag[0x2c00 / banksize];
+
+    // Palette addresses are handled in the PPU IO handler
 }
 
 //
