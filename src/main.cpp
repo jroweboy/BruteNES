@@ -121,8 +121,8 @@ static std::unique_ptr<EmuThread> emu;
 int SDL_AppIterate(void) {
     frontend->DrawFrame(emu->GetFrame());
 
-    SPDLOG_WARN("time taken {} FPS {}", emu->nes->last_timer,
-                1000000000.0 / emu->nes->last_timer);
+//    SPDLOG_WARN("time taken {} FPS {}", emu->nes->last_timer,
+//                1000000000.0 / emu->nes->last_timer);
     return 0;
 }
 

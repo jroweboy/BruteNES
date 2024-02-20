@@ -155,6 +155,7 @@ private:
     void UpdateVideoRamAddr();
     inline void IncrementHScroll();
     inline void IncrementVScroll();
+    inline void CopyHScrollToV();
 
     std::array<u8, 256> secondaryOAM{};
     std::array<u8, 0x20> palette{};

@@ -169,6 +169,9 @@ void PPU::Tick() {
 
 // High level scanline render implementation for speed
 void PPU::RunFastScanline() {
+    if (scanline == 261) {
+        v = t;
+    }
     if (scanline == 240) {
         status.vblank = 1;
     }
@@ -201,8 +204,8 @@ void PPU::RunFastScanline() {
             nmt_strip[i + 0x20] = right_nmt[i];
             // Decode the attribute for this tile from the actual attribute byte
             u8 attr_shift = tile_attr_top_or_bottom | ((i % 4) & 0b10);
-            atr_strip[i] = left_nmt[tile_strip_attr | (i/2)] >> attr_shift;
-            atr_strip[i + 0x20] = right_nmt[tile_strip_attr | (i/2)] >> attr_shift;
+            atr_strip[i] = (left_nmt[tile_strip_attr | (i/2)] >> attr_shift) & 0b11;
+            atr_strip[i + 0x20] = (right_nmt[tile_strip_attr | (i/2)] >> attr_shift) & 0b11;
         }
 
         // Now that we have our line of tiles to read from, decode the pixels
@@ -239,9 +242,13 @@ void PPU::RunFastScanline() {
         }
 
         // TODO mix scanline bg and sp buffers together
-        std::memcpy(rendering_to + (scanline * 256), scanline_bg_pixel_buffer.data(), scanline_bg_pixel_buffer.size());
+        std::memcpy(rendering_to + (scanline * 256),
+                    scanline_bg_pixel_buffer.data(),
+                    scanline_bg_pixel_buffer.size());
     }
 
+    IncrementVScroll();
+    CopyHScrollToV();
     current_cycle += CYCLES_PER_SCANLINE;
     scanline++;
 }
@@ -250,8 +257,6 @@ void PPU::OAMEvaluation() {
     if (!mask.sp_enable) {
         return;
     }
-
-
 
 }
 
@@ -309,4 +314,10 @@ void PPU::IncrementVScroll() {
         addr = (addr & ~0x03E0) | (y << 5);
     }
     v = addr;
+}
+
+void PPU::CopyHScrollToV() {
+    // v: ....A.. ...BCDEF <- t: ....A.. ...BCDEF
+    constexpr u16 copy_mask = 0b0000100'00011111;
+    v = (v & ~(copy_mask)) | (t & copy_mask);
 }
