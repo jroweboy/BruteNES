@@ -93,9 +93,17 @@ public:
         return fakemmu.ppumem[bank];
     }
 
-    inline u16 ReadVRAM16(u16 addr) {
-        return Read8(addr + 1) << 8 | Read8(addr);
+    inline u8* PixelCacheLookup(u16 addr, u8 fine_y) {
+        constexpr int TILE_STRIDE = 16;
+        constexpr int PIXEL_STRIDE = TILE_STRIDE * 8;
+        const auto bank = addr / FakeVirtualMemory::BANK_WINDOW;
+        const auto offset = addr & (FakeVirtualMemory::BANK_WINDOW-1);
+        return &fakemmu.chr_pixel_map[bank][offset + fine_y * PIXEL_STRIDE];
     }
+
+//    inline u16 ReadVRAM16(u16 addr) {
+//        return Read8(addr + 1) << 8 | Read8(addr);
+//    }
     inline void WriteVRAM8(u16 addr, u8 value) {
         const auto bank = addr / FakeVirtualMemory::BANK_WINDOW;
         const auto offset = addr & (FakeVirtualMemory::BANK_WINDOW-1);

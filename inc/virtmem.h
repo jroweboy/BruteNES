@@ -40,12 +40,14 @@ public:
     std::array<u8*, BANK_COUNT> cpumem{};
     std::array<u8, BANK_COUNT> pputag{};
     std::array<u8*, BANK_COUNT> ppumem{};
+    std::array<u8*, BANK_COUNT> chr_pixel_map{};
 
     std::array<u8, CIRAM_SIZE> ciram{};
     int prg_bank_count{};
     int chr_bank_count{};
-    std::array<std::array<u8, BANK_WINDOW>, MAX_PRG_SIZE> prg{};
-    std::array<std::array<u8, BANK_WINDOW>, MAX_CHR_SIZE> chr{};
+    std::array<std::array<u8, BANK_WINDOW>, MAX_PRG_SIZE / BANK_WINDOW> prg{};
+    std::array<std::array<u8, BANK_WINDOW>, MAX_CHR_SIZE / BANK_WINDOW> chr{};
+    std::array<std::array<u8, BANK_WINDOW * 8 * 8>, MAX_CHR_SIZE / BANK_WINDOW> decoded_pixel_cache;
 
     std::array<std::array<u8, BANK_WINDOW>, 4> nmt{};
 

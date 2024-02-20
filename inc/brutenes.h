@@ -31,6 +31,7 @@ public:
     bool paused = false;
     std::mutex pause_mutex{};
     std::condition_variable pause_cv{};
+    long long last_timer{};
 
 private:
     explicit BruteNES(std::vector<u8>&& rom, INES header, std::span<u8> prg, std::span<u8> chr);
@@ -58,10 +59,11 @@ public:
         return nes->GetFrame();
     }
 
+    std::unique_ptr<BruteNES> nes;
+
 private:
     explicit EmuThread(std::unique_ptr<BruteNES>&& nes) : nes(std::move(nes)) {}
 
-    std::unique_ptr<BruteNES> nes;
     std::thread th{};
 };
 

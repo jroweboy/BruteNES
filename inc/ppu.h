@@ -15,7 +15,7 @@ class PPU {
 public:
     constexpr static auto CYCLES_PER_SCANLINE = 341 * Scheduler::NTSC_PPU_CLOCK_DIVIDER;
 
-    explicit PPU(Bus& bus, Scheduler& timing) : bus(bus), timing(timing) {}
+    explicit PPU(Bus& bus, Scheduler& timing) : bus(bus), timing(timing), swap_mutex() {}
 
     u8 ReadRegister(u16 addr);
     void WriteRegister(u16 addr, u8 value);
@@ -172,6 +172,10 @@ private:
     u16* back_buffer = pixel_buffer2.data();
     u16* rendering_to = pixel_buffer3.data();
     std::array<u16*, 3> buffers = {pixel_buffer1.data(), pixel_buffer2.data(), pixel_buffer3.data()};
+
+    std::array<u16, 8 * 32> scanline_sp_pixel_buffer{};
+    std::array<u16, 8 * 32> scanline_bg_pixel_buffer{};
+
 };
 
 

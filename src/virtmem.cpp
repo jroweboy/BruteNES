@@ -36,7 +36,7 @@ void FakeVirtualMemory::InitCPUMap(std::span<u8> rawprg) {
     }
 
     // MMIO - don't cpumem memory, let the PPU handle these
-    for (; addr < 0x6000; addr += banksize) {
+    for (addr = 0x2000; addr < 0x6000; addr += banksize) {
         cpumem[addr / banksize] = nullptr;
         cputag[addr / banksize] = FakeVirtualMemory::Tag::MMIO;
     }
@@ -48,6 +48,9 @@ void FakeVirtualMemory::InitCPUMap(std::span<u8> rawprg) {
         cpumem[addr / banksize] = view.data();
         cputag[addr / banksize] = FakeVirtualMemory::Tag::Read;
         addr -= banksize;
+        if (addr < 0x6000) {
+            break;
+        }
     }
 }
 
@@ -65,9 +68,34 @@ void FakeVirtualMemory::InitPPUMap(std::span<u8> rawchr, const INES& header) {
         u32 addr = 0x0;
         for (auto &view: chr | ranges::views::slice(0, chr_bank_count) | ranges::views::reverse) {
             ppumem[addr / banksize] = view.data();
+            chr_pixel_map[addr / banksize] = decoded_pixel_cache[addr / banksize].data();
             u8 tag = Tag::Read;
-            cputag[addr / banksize] = tag;
-            addr -= banksize;
+            pputag[addr / banksize] = tag;
+            addr += banksize;
+        }
+
+        // Decode the CHR blocks into pixels in a cache
+        for (int bank_id=0; bank_id < chr.size(); bank_id++) {
+            constexpr int TILE_STRIDE = 16;
+            constexpr int PIXEL_STRIDE = TILE_STRIDE * 8;
+            const auto& bank = chr[bank_id];
+            auto& cache = decoded_pixel_cache[bank_id];
+            for (int n=0; n < bank.size(); ++n) {
+                u32 offset = n * TILE_STRIDE;
+                u32 x = (n % TILE_STRIDE) * 8;
+                u32 y = (n / TILE_STRIDE) * 8;
+                for (int j=0; j < 8; ++j) {
+                    u8 plane0 = bank[offset + j];
+                    u8 plane1 = bank[offset + j + 8];
+                    for (int k=0; k < 8; ++k) {
+                        u8 pixelbit = 7-k;
+                        u8 bit0 = (plane0>>pixelbit) & 1;
+                        u8 bit1 = ((plane1>>pixelbit) & 1) << 1;
+                        u8 color = (bit0 | bit1);
+                        cache[x + k + (y + j) * PIXEL_STRIDE] = color;
+                    }
+                }
+            }
         }
     }
 

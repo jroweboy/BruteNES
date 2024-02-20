@@ -18,6 +18,7 @@ public:
 
     u32 RunBlock(u32 max_cycles, bool use_ppu_cache);
 private:
+//    void TraceLog(u16 prev_pc, u8 prev_idx, u16 operand, u8 inst_idx);
     Bus& bus;
     CPU& cpu;
 
@@ -51,7 +52,7 @@ public:
 
     template<Flags F>
     constexpr void SetFlag(bool result) {
-        P = (P & ~F) | (result << std::countr_zero((u8)F));
+        P = (P & ~F) | ((result) << std::countr_zero((u8)F));
     }
 
     inline void PushStack(u8 value) {
@@ -76,6 +77,7 @@ public:
     bool pending_nmi{};
 
 private:
+
     Bus& bus;
     Interpreter interpreter;
 };

@@ -1,5 +1,5 @@
 
-
+#include <chrono>
 #include <range/v3/view.hpp>
 
 #include "brutenes.h"
@@ -90,7 +90,12 @@ void BruteNES::RunLoop() {
             std::unique_lock<std::mutex> lock(pause_mutex);
             pause_cv.wait(lock, [&]{ return !paused; });
         }
+
+        typedef std::chrono::high_resolution_clock Clock;
+        auto t1 = Clock::now();
         RunFrame();
+        auto t2 = Clock::now();
+        last_timer = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
     }
 }
 

@@ -1,4 +1,6 @@
 
+#include <signal.h>
+
 #include "cpu.h"
 #include "bus.h"
 
@@ -39,6 +41,50 @@ static std::array<u8, 256> cycle_lut = {
     /*0xF0*/ 2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7,
 };
 
+
+static std::array<std::string, 256> inst_name_lut = {{
+        "BRK_IMM", "ORA_INX", "STP_IMP", "SLO_INX", "NOP_ZPA", "ORA_ZPA", "ASL_ZPA", "SLO_ZPA",
+        "PHP_IMP", "ORA_IMM", "ASL_IMP", "ANC_IMM", "NOP_ABS", "ORA_ABS", "ASL_ABS", "SLO_ABS",
+        "BPL_REL", "ORA_INY", "STP_IMP", "SLO_INY", "NOP_ZPX", "ORA_ZPX", "ASL_ZPX", "SLO_ZPX",
+        "CLC_IMP", "ORA_ABY", "NOP_IMP", "SLO_ABY", "NOP_ABX", "ORA_ABX", "ASL_ABX", "SLO_ABX",
+        "JSR_ABS", "AND_INX", "STP_IMP", "RLA_INX", "BIT_ZPA", "AND_ZPA", "ROL_ZPA", "RLA_ZPA",
+        "PLP_IMP", "AND_IMM", "ROL_IMP", "ANC_IMM", "BIT_ABS", "AND_ABS", "ROL_ABS", "RLA_ABS",
+        "BMI_REL", "AND_INY", "STP_IMP", "RLA_INY", "NOP_ZPX", "AND_ZPX", "ROL_ZPX", "RLA_ZPX",
+        "SEC_IMP", "AND_ABY", "NOP_IMP", "RLA_ABY", "NOP_ABX", "AND_ABX", "ROL_ABX", "RLA_ABX",
+        "RTI_IMP", "EOR_INX", "STP_IMP", "SRE_INX", "NOP_ZPA", "EOR_ZPA", "LSR_ZPA", "SRE_ZPA",
+        "PHA_IMP", "EOR_IMM", "LSR_IMP", "ALR_IMM", "JMP_ABS", "EOR_ABS", "LSR_ABS", "SRE_ABS",
+        "BVC_REL", "EOR_INY", "STP_IMP", "SRE_INY", "NOP_ZPX", "EOR_ZPX", "LSR_ZPX", "SRE_ZPX",
+        "CLI_IMP", "EOR_ABY", "NOP_IMP", "SRE_ABY", "NOP_ABX", "EOR_ABX", "LSR_ABX", "SRE_ABX",
+        "RTS_IMP", "ADC_INX", "STP_IMP", "RRA_INX", "NOP_ZPA", "ADC_ZPA", "ROR_ZPA", "RRA_ZPA",
+        "PLA_IMP", "ADC_IMM", "ROR_IMP", "ARR_IMM", "JMP_IND", "ADC_ABS", "ROR_ABS", "RRA_ABS",
+        "BVS_REL", "ADC_INY", "STP_IMP", "RRA_INY", "NOP_ZPX", "ADC_ZPX", "ROR_ZPX", "RRA_ZPX",
+        "SEI_IMP", "ADC_ABY", "NOP_IMP", "RRA_ABY", "NOP_ABX", "ADC_ABX", "ROR_ABX", "RRA_ABX",
+        "NOP_IMM", "STA_INX", "NOP_IMM", "SAX_INX", "STY_ZPA", "STA_ZPA", "STX_ZPA", "SAX_ZPA",
+        "DEY_IMP", "NOP_IMM", "TXA_IMP", "XAA_IMM", "STY_ABS", "STA_ABS", "STX_ABS", "SAX_ABS",
+        "BCC_REL", "STA_INY", "STP_IMP", "AHX_INY", "STY_ZPX", "STA_ZPX", "STX_ZPY", "SAX_ZPY",
+        "TYA_IMP", "STA_ABY", "TXS_IMP", "TAS_ABY", "SHY_ABX", "STA_ABX", "SHX_ABY", "AHX_ABY",
+        "LDY_IMM", "LDA_INX", "LDX_IMM", "LAX_INX", "LDY_ZPA", "LDA_ZPA", "LDX_ZPA", "LAX_ZPA",
+        "TAY_IMP", "LDA_IMM", "TAX_IMP", "LAX_IMM", "LDY_ABS", "LDA_ABS", "LDX_ABS", "LAX_ABS",
+        "BCS_REL", "LDA_INY", "STP_IMP", "LAX_INY", "LDY_ZPX", "LDA_ZPX", "LDX_ZPY", "LAX_ZPY",
+        "CLV_IMP", "LDA_ABY", "TSX_IMP", "LAS_ABY", "LDY_ABX", "LDA_ABX", "LDX_ABY", "LAX_ABY",
+        "CPY_IMM", "CMP_INX", "NOP_IMM", "DCP_INX", "CPY_ZPA", "CMP_ZPA", "DEC_ZPA", "DCP_ZPA",
+        "INY_IMP", "CMP_IMM", "DEX_IMP", "AXS_IMM", "CPY_ABS", "CMP_ABS", "DEC_ABS", "DCP_ABS",
+        "BNE_REL", "CMP_INY", "STP_IMP", "DCP_INY", "NOP_ZPX", "CMP_ZPX", "DEC_ZPX", "DCP_ZPX",
+        "CLD_IMP", "CMP_ABY", "NOP_IMP", "DCP_ABY", "NOP_ABX", "CMP_ABX", "DEC_ABX", "DCP_ABX",
+        "CPX_IMM", "SBC_INX", "NOP_IMM", "ISC_INX", "CPX_ZPA", "SBC_ZPA", "INC_ZPA", "ISC_ZPA",
+        "INX_IMP", "SBC_IMM", "NOP_IMP", "SBC_IMM", "CPX_ABS", "SBC_ABS", "INC_ABS", "ISC_ABS",
+        "BEQ_REL", "SBC_INY", "STP_IMP", "ISC_INY", "NOP_ZPX", "SBC_ZPX", "INC_ZPX", "ISC_ZPX",
+        "SED_IMP", "SBC_ABY", "NOP_IMP", "ISC_ABY", "NOP_ABX", "SBC_ABX", "INC_ABX", "ISC_ABX",
+}};
+
+
+//#define TRACE_LOG() \
+//    SPDLOG_INFO("${:4X}: {} ${:X} a${:2x} x${:2x} y${:2x} SP${:2x} P${:2x} -> {} @ ${:4X}", \
+//                prev_pc, inst_name_lut[prev_idx], operand, \
+//                cpu.A, cpu.X, cpu.Y, cpu.SP, cpu.P, \
+//                inst_name_lut[inst_idx], cpu.PC);
+
+#define TRACE_LOG() ;
 
 // I'm so sorry.
 #define NOOP(inner) ;
@@ -87,7 +133,7 @@ static std::array<u8, 256> cycle_lut = {
             CHECKED_READ_8(cpu.PC)              \
             inst_idx = value;                   \
         }                                   \
-        /*SPDLOG_INFO("{:2X} {:X} -> {:2X} @ {:4X}", prev_idx, operand, inst_idx, cpu.PC);*/ \
+        TRACE_LOG();                        \
         prev_pc = cpu.PC++;                 \
     }
 
@@ -104,7 +150,7 @@ static std::array<u8, 256> cycle_lut = {
 
 #define COMPARE_OP(reg) { \
     cpu.SetFlag<CPU::Flags::C>(reg >= value);                      \
-    cpu.SetFlag<CPU::Flags::Z>(reg == 0);                          \
+    cpu.SetFlag<CPU::Flags::Z>(reg == value);                \
     cpu.SetFlag<CPU::Flags::N>(((reg - value) & 0x80) != 0 );      \
 }
 
@@ -365,15 +411,15 @@ u32 Interpreter::RunBlock(u32 max_cycles, bool use_ppu_cache) {
 
     ALU_OP(ORA, {
         cpu.A |= value;
-        cpu.SetNZ(value);
+        cpu.SetNZ(cpu.A);
     })
     ALU_OP(AND, {
         cpu.A &= value;
-        cpu.SetNZ(value);
+        cpu.SetNZ(cpu.A);
     })
     ALU_OP(EOR, {
         cpu.A ^= value;
-        cpu.SetNZ(value);
+        cpu.SetNZ(cpu.A);
     })
     ALU_OP(ADC, {
         u8 carry_out;
