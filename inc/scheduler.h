@@ -36,7 +36,7 @@ public:
     constexpr static u32 NTSC_PPU_CLOCK = NTSC_CLOCK_PER_FRAME / NTSC_PPU_CLOCK_DIVIDER;
     constexpr static u32 NTSC_CPU_CLOCK = NTSC_CLOCK_PER_FRAME / NTSC_CPU_CLOCK_DIVIDER;
 
-    Scheduler(CPU& cpu) : cpu(cpu) {}
+    explicit Scheduler(CPU& cpu) : cpu(cpu) {}
 
     void ScheduleInterrupt(s32 cycle_count, InterruptSource source, bool recurring = false);
 

@@ -177,6 +177,7 @@ private:
     std::array<u16, 8 * 32> scanline_sp_pixel_buffer{};
     std::array<u16, 8 * 32> scanline_bg_pixel_buffer{};
 
+    u8 read_buffer{};
 };
 
 

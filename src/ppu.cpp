@@ -9,6 +9,13 @@ u8 PPU::ReadRegister(u16 addr) {
         w = false;
         status.openbus = latch;
         return status.raw;
+    case 7: {
+        u8 returnValue = read_buffer;
+        read_buffer = bus.ReadVRAM8(v & (0x4000-1));
+
+        UpdateVideoRamAddr();
+        return returnValue;
+    }
     default:
     case 0:
         return latch;
@@ -42,27 +49,20 @@ void PPU::WriteRegister(u16 addr, u8 value) {
         }
         break;
     case 5:
-        if (w) {
+        if (!w) {
+            // first write
+            t = (t & ~(0b11111)) | value >> 3;
+            x = value & 0b111;
+        } else {
             // second write
             t = (t & ~(0b1110011'11100000))
                 | ((u16)value & (0b11111 << 3)) << 2
                 | ((u16)value & 0b111) << 12;
-        } else {
-            // first write
-            t = (t & ~(0b11111)) | value >> 3;
-            x = value & 0b111;
         }
         w = !w;
         break;
     case 6:
-        if (w) {
-            // second write
-            //t: ....... ABCDEFGH <- d: ABCDEFGH
-            //v: <...all bits...> <- t: <...all bits...>
-            //w:                  <- 0
-            t = (t & ~0xff) | value;
-            v = t;
-        } else {
+        if (!w) {
             //first write
             //t: .CDEFGH ........ <- d: ..CDEFGH
             //       <unused>     <- d: AB......
@@ -70,6 +70,13 @@ void PPU::WriteRegister(u16 addr, u8 value) {
             //w:                  <- 1
             t = (t & ~(0b111111 << 8)) | (value & 0b111111) << 8;
             t &= (1 << 14) - 1; // clear the MSB
+        } else {
+            // second write
+            //t: ....... ABCDEFGH <- d: ABCDEFGH
+            //v: <...all bits...> <- t: <...all bits...>
+            //w:                  <- 0
+            t = (t & ~0xff) | value;
+            v = t;
         }
         w = !w;
         break;
@@ -82,6 +89,7 @@ void PPU::WriteRegister(u16 addr, u8 value) {
             if ((address & 0b11) == 0) {
                 palette[address ^ 0x10] = value;
             }
+            UpdateVideoRamAddr();
         } else {
             if (scanline >= 240 || !RenderingEnabled()) {
                 bus.WriteVRAM8(v, value);
@@ -147,6 +155,23 @@ void PPU::Tick() {
         status.vblank = 0;
         status.sp_zero = 0;
     }
+    // At dot 256 of each scanline
+    //
+    // If rendering is enabled, the PPU increments the vertical position in v.
+    // The effective Y scroll coordinate is incremented, which is a complex
+    // operation that will correctly skip the attribute table memory regions,
+    // and wrap to the next nametable appropriately.
+    if (RenderingEnabled()) {
+        if (cycle == 256) {
+            IncrementVScroll();
+        }
+        if ( cycle == 257) {
+            CopyHScrollToV();
+        }
+        if (scanline == 261 && cycle == 280) {
+            v = t;
+        }
+    }
 
     // HACK: set sprite zero on scanline 26 for now
     if (scanline == 28 && cycle == 100) {
@@ -169,9 +194,6 @@ void PPU::Tick() {
 
 // High level scanline render implementation for speed
 void PPU::RunFastScanline() {
-    if (scanline == 261) {
-        v = t;
-    }
     if (scanline == 240) {
         status.vblank = 1;
     }
@@ -180,75 +202,84 @@ void PPU::RunFastScanline() {
         status.sp_zero = 0;
     }
 
-    // HACK: set sprite zero on scanline 26 for now
-    if (scanline == 28) {
-        status.sp_zero = 1;
-    }
-
-    if (scanline < 240) {
-        // TODO: actually do this
-        OAMEvaluation();
-
-        // Shortcut: Copy the entire horizontal strip of tile ids from the nametable
-        // Load the nametable strip for this address, including across the mirror
-        std::array<u8, 0x40> nmt_strip{};
-        std::array<u8, 0x40> atr_strip{};
-        // Intentionally strip the bottom 5 bits since we want the start of the row
-        u16 tile_strip_addr = 0x2000 | (v & 0x0F20);
-        u16 tile_strip_attr = 0x3C0 | ((v >> 4) & 0x38);
-        u8 tile_attr_top_or_bottom = (v & 0x7);
-        u8* left_nmt = bus.DirectVRAMPageAccess(tile_strip_addr);
-        u8* right_nmt = bus.DirectVRAMPageAccess(tile_strip_addr ^ (0b11 << 10));
-        for (int i = 0; i < 0x20; i++) {
-            nmt_strip[i] = left_nmt[i];
-            nmt_strip[i + 0x20] = right_nmt[i];
-            // Decode the attribute for this tile from the actual attribute byte
-            u8 attr_shift = tile_attr_top_or_bottom | ((i % 4) & 0b10);
-            atr_strip[i] = (left_nmt[tile_strip_attr | (i/2)] >> attr_shift) & 0b11;
-            atr_strip[i + 0x20] = (right_nmt[tile_strip_attr | (i/2)] >> attr_shift) & 0b11;
+    if (RenderingEnabled()) {
+        // HACK: set sprite zero on scanline 26 for now
+        if (scanline == 28) {
+            status.sp_zero = 1;
+        }
+        if (scanline == 261) {
+            v = t;
         }
 
-        // Now that we have our line of tiles to read from, decode the pixels
-        // into the palette data
-        u8 fine_x = x;
-        // Combine the low bit of the nametable with the coarse x
-        u8 coarse_x = v & (0x20-1) | ((v & 0b0100'00000000) >> 5);
-        u8 fine_y = v >> 12;
+        if (scanline < 240) {
+            // TODO: actually do this
+            OAMEvaluation();
 
-        // Initialize the data for rendering this strip
-        // Lookup the tile in the pixel cache
-        u8 tile = nmt_strip[coarse_x];
-        u8 tile_attribute = atr_strip[coarse_x];
-        u8* tile_palette = &palette[tile_attribute * 4];
-        u16 chr_tile_addr = (ctrl.bg_pattern << 12) | tile * 16;
-        u8* pixel_cache = bus.PixelCacheLookup(chr_tile_addr, fine_y);
+            // Shortcut: Copy the entire horizontal strip of tile ids from the nametable
+            // Load the nametable strip for this address, including across the mirror
+            std::array<u8, 0x40> nmt_strip{};
+            std::array<u8, 0x40> atr_strip{};
+            // Intentionally strip the bottom 5 bits since we want the start of the row
+            u16 tile_strip_addr = 0x2000 | (v & 0b11'11100000);
+            u16 tile_strip_attr = 0x3C0 | ((v >> 4) & 0x38);
+            u8 tile_attr_top_or_bottom = (v & 0x7);
+            u8* left_nmt = bus.DirectVRAMPageAccess(tile_strip_addr);
+            u16 right_nmt_addr = tile_strip_addr ^ (0x400);
+            u8* right_nmt = bus.DirectVRAMPageAccess(right_nmt_addr);
+            for (int i = 0; i < 0x20; i++) {
+                u16 offset = (tile_strip_addr & 0x3ff) | i;
+                nmt_strip[i] = left_nmt[offset];
+                nmt_strip[i + 0x20] = right_nmt[offset];
+                // Decode the attribute for this tile from the actual attribute byte
+                u8 attr_shift = tile_attr_top_or_bottom | ((i % 4) & 0b10);
+                atr_strip[i] = (left_nmt[tile_strip_attr | (i/2)] >> attr_shift) & 0b11;
+                atr_strip[i + 0x20] = (right_nmt[tile_strip_attr | (i/2)] >> attr_shift) & 0b11;
+            }
 
-        // For each tile in the background
-        for (int i = 0; i < 0x20; i++) {
-            // for each pixel in the tile
-            for (int j = 0; j < 8; j++) {
-                scanline_bg_pixel_buffer[i + j*8] = tile_palette[pixel_cache[fine_x]];
-                fine_x++;
-                if (fine_x == 8) {
-                    fine_x = 0;
-                    coarse_x = (coarse_x + 1) % 0x40;
-                    tile = nmt_strip[coarse_x];
-                    tile_attribute = atr_strip[coarse_x];
-                    tile_palette = &palette[tile_attribute * 4];
-                    chr_tile_addr = (ctrl.bg_pattern << 12) | tile * 16;
-                    pixel_cache = bus.PixelCacheLookup(chr_tile_addr, fine_y);
+            // Now that we have our line of tiles to read from, decode the pixels
+            // into the palette data
+            u8 fine_x = x;
+            // Combine the low bit of the nametable with the coarse x
+            u8 coarse_x = v & (0x20-1) | ((v & 0b0100'00000000) >> 5);
+            u8 fine_y = v >> 12;
+
+            // Initialize the data for rendering this strip
+            // Lookup the tile in the pixel cache
+            u8 tile = nmt_strip[coarse_x];
+            u8 tile_attribute = atr_strip[coarse_x];
+            u8* tile_palette = &palette[tile_attribute * 4];
+            u16 chr_tile_addr = (ctrl.bg_pattern << 12) | tile * 16;
+            u8* pixel_cache = bus.PixelCacheLookup(chr_tile_addr, fine_y);
+
+            // For each tile in the background
+            for (int i = 0; i < 0x20; i++) {
+                // for each pixel in the tile
+                for (int j = 0; j < 8; j++) {
+                    const auto p = pixel_cache[fine_x];
+                    scanline_bg_pixel_buffer[i*8 + j] = p ? tile_palette[p] : palette[0];
+                    fine_x++;
+                    if (fine_x == 8) {
+                        fine_x = 0;
+                        coarse_x = (coarse_x + 1) % 0x40;
+                        tile = nmt_strip[coarse_x];
+                        tile_attribute = atr_strip[coarse_x];
+                        tile_palette = &palette[tile_attribute * 4];
+                        chr_tile_addr = (ctrl.bg_pattern << 12) | tile * 16;
+                        pixel_cache = bus.PixelCacheLookup(chr_tile_addr, fine_y);
+                    }
                 }
             }
+
+            // TODO mix scanline bg and sp buffers together
+            std::memcpy(rendering_to + (scanline * 256),
+                        scanline_bg_pixel_buffer.data(),
+                        scanline_bg_pixel_buffer.size() * sizeof(u16));
         }
 
-        // TODO mix scanline bg and sp buffers together
-        std::memcpy(rendering_to + (scanline * 256),
-                    scanline_bg_pixel_buffer.data(),
-                    scanline_bg_pixel_buffer.size());
+        IncrementVScroll();
+        CopyHScrollToV();
     }
 
-    IncrementVScroll();
-    CopyHScrollToV();
     current_cycle += CYCLES_PER_SCANLINE;
     scanline++;
 }

@@ -47,7 +47,7 @@ public:
     int chr_bank_count{};
     std::array<std::array<u8, BANK_WINDOW>, MAX_PRG_SIZE / BANK_WINDOW> prg{};
     std::array<std::array<u8, BANK_WINDOW>, MAX_CHR_SIZE / BANK_WINDOW> chr{};
-    std::array<std::array<u8, BANK_WINDOW * 8 * 8>, MAX_CHR_SIZE / BANK_WINDOW> decoded_pixel_cache;
+    std::array<std::array<u8, BANK_WINDOW * 4>, MAX_CHR_SIZE / BANK_WINDOW> decoded_pixel_cache;
 
     std::array<std::array<u8, BANK_WINDOW>, 4> nmt{};
 

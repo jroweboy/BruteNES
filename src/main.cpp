@@ -55,10 +55,11 @@ constexpr std::array<u32, 0x40 * EmphasisMultiplier.size()> FullPalette = GenFul
 class SDLFrontend {
 public:
     SDLFrontend() {
-        if (SDL_CreateWindowAndRenderer(320, 240, 0, &win, &renderer)) {
+        if (SDL_CreateWindowAndRenderer(256, 240, SDL_WINDOW_RESIZABLE, &win, &renderer)) {
             return;
         }
         texture = SDL_CreateTexture( renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 256, 240 );
+        SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
     }
     ~SDLFrontend() {
         if (texture)
@@ -70,11 +71,18 @@ public:
     }
     void DrawFrame(u16* palette_buffer) {
         if (!renderer) return;
+//        SDL_UpdateTexture(texture, nullptr, pixel_data.data(), 256 * sizeof (uint32_t));
+//        void* pixels = reinterpret_cast<void*>(pixel_data.data());
+        void* pixelsraw;
+        int pitch;
+        SDL_LockTexture(texture, nullptr, &pixelsraw, &pitch );
+        u32* pixels = reinterpret_cast<u32*>(pixelsraw);
         for (int i = 0; i < 256 * 240; i++) {
-            pixel_data[i] = FullPalette[palette_buffer[i]];
+            pixels[i] = FullPalette[palette_buffer[i]];
         }
-        SDL_UpdateTexture(texture, nullptr, pixel_data.data(), 256 * sizeof (uint32_t));
+        SDL_UnlockTexture(texture);
         SDL_RenderClear(renderer); //clears the renderer
+        SDL_SetRenderTarget(renderer, nullptr);
         SDL_RenderTexture(renderer, texture, nullptr, nullptr);
         SDL_RenderPresent(renderer); //updates the renderer
     }
@@ -82,7 +90,7 @@ private:
     SDL_Window *win{};
     SDL_Renderer *renderer{};
     SDL_Texture *texture{};
-    std::array<u32, 256 * 240> pixel_data{};
+//    std::array<u32, 256 * 240> pixel_data{};
 };
 
 static std::unique_ptr<SDLFrontend> frontend;
@@ -107,6 +115,7 @@ static std::unique_ptr<EmuThread> emu;
 
     std::ifstream instream(filename, std::ios::binary);
     std::vector<u8> file_contents((std::istreambuf_iterator<char>(instream)), std::istreambuf_iterator<char>());
+
 
     emu = EmuThread::Init(std::move(file_contents));
     if (!emu) {

@@ -77,10 +77,10 @@ void FakeVirtualMemory::InitPPUMap(std::span<u8> rawchr, const INES& header) {
         // Decode the CHR blocks into pixels in a cache
         for (int bank_id=0; bank_id < chr.size(); bank_id++) {
             constexpr int TILE_STRIDE = 16;
-            constexpr int PIXEL_STRIDE = TILE_STRIDE * 8;
+            constexpr int PIXEL_STRIDE = 128;
             const auto& bank = chr[bank_id];
             auto& cache = decoded_pixel_cache[bank_id];
-            for (int n=0; n < bank.size(); ++n) {
+            for (int n=0; n < bank.size() / TILE_STRIDE; ++n) {
                 u32 offset = n * TILE_STRIDE;
                 u32 x = (n % TILE_STRIDE) * 8;
                 u32 y = (n / TILE_STRIDE) * 8;
@@ -92,7 +92,8 @@ void FakeVirtualMemory::InitPPUMap(std::span<u8> rawchr, const INES& header) {
                         u8 bit0 = (plane0>>pixelbit) & 1;
                         u8 bit1 = ((plane1>>pixelbit) & 1) << 1;
                         u8 color = (bit0 | bit1);
-                        cache[x + k + (y + j) * PIXEL_STRIDE] = color;
+                        u32 idx = x + k + (y + j) * PIXEL_STRIDE;
+                        cache[idx] = color;
                     }
                 }
             }

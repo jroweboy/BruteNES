@@ -78,13 +78,13 @@ static std::array<std::string, 256> inst_name_lut = {{
 }};
 
 
-//#define TRACE_LOG() \
-//    SPDLOG_INFO("${:4X}: {} ${:X} a${:2x} x${:2x} y${:2x} SP${:2x} P${:2x} -> {} @ ${:4X}", \
-//                prev_pc, inst_name_lut[prev_idx], operand, \
-//                cpu.A, cpu.X, cpu.Y, cpu.SP, cpu.P, \
-//                inst_name_lut[inst_idx], cpu.PC);
+#define TRACE_LOG() \
+    SPDLOG_INFO("${:4X}: {} ${:X} a${:2x} x${:2x} y${:2x} SP${:2x} P${:2x} -> {} @ ${:4X}", \
+                prev_pc, inst_name_lut[prev_idx], operand, \
+                cpu.A, cpu.X, cpu.Y, cpu.SP, cpu.P, \
+                inst_name_lut[inst_idx], cpu.PC);
 
-#define TRACE_LOG() ;
+//#define TRACE_LOG() ;
 
 // I'm so sorry.
 #define NOOP(inner) ;

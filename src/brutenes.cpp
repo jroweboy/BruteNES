@@ -34,7 +34,7 @@ void BruteNES::RunFrame() {
             // If we are in vblank, then its safe to use the write cache
             s64 estimate_adjustment = (s64)20 * PPU::CYCLES_PER_SCANLINE - (ppu.scanline * PPU::CYCLES_PER_SCANLINE + ppu.cycle);
             if (estimate_adjustment > 0) {
-                estimate = estimate_adjustment;
+                estimate = estimate_adjustment / Scheduler::NTSC_CPU_CLOCK_DIVIDER;
                 use_ppu_cache = true;
             }
         }
@@ -80,7 +80,7 @@ u16* BruteNES::GetFrame() {
         return prev_frame;
     }
     prev_frame = ppu.LockBuffer();
-    return ppu.LockBuffer();
+    return prev_frame;
 }
 
 void BruteNES::RunLoop() {
