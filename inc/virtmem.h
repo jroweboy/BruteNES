@@ -45,11 +45,16 @@ public:
     std::array<u8, CIRAM_SIZE> ciram{};
     int prg_bank_count{};
     int chr_bank_count{};
-    std::array<std::array<u8, BANK_WINDOW>, MAX_PRG_SIZE / BANK_WINDOW> prg{};
-    std::array<std::array<u8, BANK_WINDOW>, MAX_CHR_SIZE / BANK_WINDOW> chr{};
-    std::array<std::array<u8, BANK_WINDOW * 4>, MAX_CHR_SIZE / BANK_WINDOW> decoded_pixel_cache;
+    std::array<u8, MAX_PRG_SIZE> prg{};
+    std::array<u8, MAX_CHR_SIZE> chr{};
+    std::array<u8, MAX_CHR_SIZE * 4> decoded_pixel_cache{};
+    std::array<u8, 0x400 * 4> nmt{};
 
-    std::array<std::array<u8, BANK_WINDOW>, 4> nmt{};
+//    std::array<std::array<u8, BANK_WINDOW>, MAX_PRG_SIZE / BANK_WINDOW> prg{};
+//    std::array<std::array<u8, BANK_WINDOW>, MAX_CHR_SIZE / BANK_WINDOW> chr{};
+//    std::array<std::array<u8, BANK_WINDOW * 4>, MAX_CHR_SIZE / BANK_WINDOW> decoded_pixel_cache;
+
+//    std::array<std::array<u8, BANK_WINDOW>, 4> nmt{};
 
 private:
 };

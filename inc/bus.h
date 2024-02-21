@@ -94,20 +94,20 @@ public:
     }
 
     inline u8* PixelCacheLookup(u16 addr, u8 fine_y) {
-        constexpr int TILE_STRIDE = 16;
-        constexpr int PIXEL_STRIDE = 128;
+        constexpr int TILE_STRIDE = 64;
+        constexpr int PIXEL_STRIDE = 8;
         const auto bank = addr / FakeVirtualMemory::BANK_WINDOW;
         const auto tile_addr = addr & (FakeVirtualMemory::BANK_WINDOW-1);
-        int x = (tile_addr >> 4) & 0xf;
-        int y = ((tile_addr >> 8) & 0xf) * PIXEL_STRIDE * 8 + fine_y * PIXEL_STRIDE;
-        return &fakemmu.chr_pixel_map[bank][x * 8 + y];
+        int x = ((tile_addr >> 4) & 0xf) * TILE_STRIDE;
+        int y = ((tile_addr >> 8) & 0xf) * TILE_STRIDE * 16 + fine_y * PIXEL_STRIDE;
+        return &fakemmu.chr_pixel_map[bank][x + y];
     }
 
 //    inline u16 ReadVRAM16(u16 addr) {
 //        return Read8(addr + 1) << 8 | Read8(addr);
 //    }
     inline void WriteVRAM8(u16 addr, u8 value) {
-        addr &= 0x3fff;
+//        addr &= 0x3fff;
         const auto bank = addr / FakeVirtualMemory::BANK_WINDOW;
         const auto offset = addr & (FakeVirtualMemory::BANK_WINDOW-1);
         fakemmu.ppumem[bank][offset] = value;

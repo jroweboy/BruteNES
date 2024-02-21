@@ -84,7 +84,8 @@ static std::array<std::string, 256> inst_name_lut = {{
                 cpu.A, cpu.X, cpu.Y, cpu.SP, cpu.P, \
                 inst_name_lut[inst_idx], cpu.PC);
 
-//#define TRACE_LOG() ;
+#undef TRACE_LOG
+#define TRACE_LOG() ;
 
 // I'm so sorry.
 #define NOOP(inner) ;

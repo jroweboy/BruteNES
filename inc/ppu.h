@@ -152,7 +152,7 @@ private:
     void OAMDMA();
     void RunFastScanline();
     void OAMEvaluation();
-    void UpdateVideoRamAddr();
+    void IncrementV();
     inline void IncrementHScroll();
     inline void IncrementVScroll();
     inline void CopyHScrollToV();

@@ -13,7 +13,7 @@ u8 PPU::ReadRegister(u16 addr) {
         u8 returnValue = read_buffer;
         read_buffer = bus.ReadVRAM8(v & (0x4000-1));
 
-        UpdateVideoRamAddr();
+        IncrementV();
         return returnValue;
     }
     default:
@@ -51,10 +51,15 @@ void PPU::WriteRegister(u16 addr, u8 value) {
     case 5:
         if (!w) {
             // first write
+            //t: ....... ...ABCDE <- d: ABCDE...
+            //x:              FGH <- d: .....FGH
+            //w:                  <- 1
             t = (t & ~(0b11111)) | value >> 3;
             x = value & 0b111;
         } else {
             // second write
+            //t: FGH..AB CDE..... <- d: ABCDEFGH
+            //w:                  <- 0
             t = (t & ~(0b1110011'11100000))
                 | ((u16)value & (0b11111 << 3)) << 2
                 | ((u16)value & 0b111) << 12;
@@ -89,13 +94,13 @@ void PPU::WriteRegister(u16 addr, u8 value) {
             if ((address & 0b11) == 0) {
                 palette[address ^ 0x10] = value;
             }
-            UpdateVideoRamAddr();
+            IncrementV();
         } else {
             if (scanline >= 240 || !RenderingEnabled()) {
                 bus.WriteVRAM8(v, value);
                 // TODO - PPU state updates happen a few cycles later
                 // but we should be fine to just update immediately
-                UpdateVideoRamAddr();
+                IncrementV();
 //                _mapper->WriteVram(_ppuBusAddress & 0x3FFF, value);
             } else {
                 //During rendering, the value written is ignored, and instead the address' LSB is used (not confirmed, based on Visual NES)
@@ -240,7 +245,7 @@ void PPU::RunFastScanline() {
             // into the palette data
             u8 fine_x = x;
             // Combine the low bit of the nametable with the coarse x
-            u8 coarse_x = v & (0x20-1) | ((v & 0b0100'00000000) >> 5);
+            u8 coarse_x = v & (0x20-1) | ((v & 0b100'00000000) >> 5);
             u8 fine_y = v >> 12;
 
             // Initialize the data for rendering this strip
@@ -292,7 +297,7 @@ void PPU::OAMEvaluation() {
 }
 
 
-void PPU::UpdateVideoRamAddr() {
+void PPU::IncrementV() {
     if(scanline >= 240 || !RenderingEnabled()) {
         v = (v + (ctrl.vertical_write ? 32 : 1)) & 0x7FFF;
         //Trigger memory read when setting the vram address - needed by MMC3 IRQ counter

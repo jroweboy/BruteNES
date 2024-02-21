@@ -71,8 +71,6 @@ public:
     }
     void DrawFrame(u16* palette_buffer) {
         if (!renderer) return;
-//        SDL_UpdateTexture(texture, nullptr, pixel_data.data(), 256 * sizeof (uint32_t));
-//        void* pixels = reinterpret_cast<void*>(pixel_data.data());
         void* pixelsraw;
         int pitch;
         SDL_LockTexture(texture, nullptr, &pixelsraw, &pitch );

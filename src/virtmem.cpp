@@ -18,11 +18,12 @@
 void FakeVirtualMemory::InitCPUMap(std::span<u8> rawprg) {
     constexpr auto banksize = FakeVirtualMemory::BANK_WINDOW;
     // Load the PRG and CHR into the backing memory
-    int i = 0;
-    for (const auto &view: rawprg | ranges::views::chunk(banksize)) {
-        std::ranges::copy(view, this->prg[i++].begin());
-    }
-    prg_bank_count = i;
+//    int i = 0;
+//    for (const auto &view: rawprg | ranges::views::chunk(banksize)) {
+//        std::ranges::copy(view, this->prg[i++].begin());
+//    }
+    std::copy(rawprg.begin(), rawprg.end(), prg.data());
+    prg_bank_count = rawprg.size() / BANK_WINDOW;
 
     // Now cpumem the pointers into the memory mapping
 
@@ -44,7 +45,10 @@ void FakeVirtualMemory::InitCPUMap(std::span<u8> rawprg) {
     // PRG - Map these starting from the end.
     // TODO - let the mapper choose how its mapped. This is really brittle.
     addr = 0x10000 - banksize;
-    for (auto& view: prg | ranges::views::slice(0, prg_bank_count) | ranges::views::reverse) {
+    for (auto view : prg
+            | ranges::views::slice(0, prg_bank_count * banksize)
+            | ranges::views::chunk(banksize)
+            | ranges::views::reverse) {
         cpumem[addr / banksize] = view.data();
         cputag[addr / banksize] = FakeVirtualMemory::Tag::Read;
         addr -= banksize;
@@ -59,42 +63,44 @@ void FakeVirtualMemory::InitPPUMap(std::span<u8> rawchr, const INES& header) {
 
     // If the game has chr-rom then it will be nonempty
     if (!rawchr.empty()) {
-        int i = 0;
-        for (const auto &view: rawchr | ranges::views::chunk(banksize)) {
-            std::ranges::copy(view, this->chr[i++].begin());
-        }
-        chr_bank_count = i;
+//        int i = 0;
+//        for (const auto &view: rawchr | ranges::views::chunk(banksize)) {
+//            std::ranges::copy(view, this->chr[i++].begin());
+//        }
+//        chr_bank_count = i;
+        std::copy(rawchr.begin(), rawchr.end(), chr.data());
+        chr_bank_count = rawchr.size() / banksize;
 
         u32 addr = 0x0;
-        for (auto &view: chr | ranges::views::slice(0, chr_bank_count) | ranges::views::reverse) {
-            ppumem[addr / banksize] = view.data();
-            chr_pixel_map[addr / banksize] = decoded_pixel_cache[addr / banksize].data();
+        for (auto view: chr
+                | ranges::views::slice(0, chr_bank_count * banksize)
+                | ranges::views::chunk(banksize)) {
             u8 tag = Tag::Read;
             pputag[addr / banksize] = tag;
+            ppumem[addr / banksize] = view.data();
+            chr_pixel_map[addr / banksize] = &decoded_pixel_cache[addr*4];
             addr += banksize;
         }
 
         // Decode the CHR blocks into pixels in a cache
-        for (int bank_id=0; bank_id < chr.size(); bank_id++) {
-            constexpr int TILE_STRIDE = 16;
-            constexpr int PIXEL_STRIDE = 128;
-            const auto& bank = chr[bank_id];
-            auto& cache = decoded_pixel_cache[bank_id];
-            for (int n=0; n < bank.size() / TILE_STRIDE; ++n) {
-                u32 offset = n * TILE_STRIDE;
-                u32 x = (n % TILE_STRIDE) * 8;
-                u32 y = (n / TILE_STRIDE) * 8;
-                for (int j=0; j < 8; ++j) {
-                    u8 plane0 = bank[offset + j];
-                    u8 plane1 = bank[offset + j + 8];
-                    for (int k=0; k < 8; ++k) {
-                        u8 pixelbit = 7-k;
-                        u8 bit0 = (plane0>>pixelbit) & 1;
-                        u8 bit1 = ((plane1>>pixelbit) & 1) << 1;
-                        u8 color = (bit0 | bit1);
-                        u32 idx = x + k + (y + j) * PIXEL_STRIDE;
-                        cache[idx] = color;
-                    }
+        constexpr int TILE_STRIDE = 64;
+        constexpr int PIXEL_STRIDE = 8;
+        // for each tile
+        for (int n=0; n < chr_bank_count * banksize / 16; ++n) {
+            u32 offset = n * 16;
+            u32 x = (n % 16) * TILE_STRIDE;
+            u32 y = (n / 16) * TILE_STRIDE * 16;
+            // for each pixel
+            for (int j=0; j < 8; ++j) {
+                u8 plane0 = chr[offset + j];
+                u8 plane1 = chr[offset + j + 8];
+                for (int k=0; k < 8; ++k) {
+                    u8 pixelbit = 7-k;
+                    u8 bit0 = (plane0>>pixelbit) & 1;
+                    u8 bit1 = ((plane1>>pixelbit) & 1) << 1;
+                    u8 color = (bit0 | bit1);
+                    u32 idx = x + k + y + j * PIXEL_STRIDE;
+                    decoded_pixel_cache[idx] = color;
                 }
             }
         }
@@ -103,40 +109,40 @@ void FakeVirtualMemory::InitPPUMap(std::span<u8> rawchr, const INES& header) {
     // Map nametables
     switch (header.mirroring) {
     case INES::Mirroring::Vertical:
-        ppumem[0x2000 / banksize] = nmt[0].data();
-        ppumem[0x2400 / banksize] = nmt[1].data();
-        ppumem[0x2800 / banksize] = nmt[0].data();
-        ppumem[0x2c00 / banksize] = nmt[1].data();
+        ppumem[0x2000 / banksize] = &nmt[0 * banksize];
+        ppumem[0x2400 / banksize] = &nmt[1 * banksize];
+        ppumem[0x2800 / banksize] = &nmt[0 * banksize];
+        ppumem[0x2c00 / banksize] = &nmt[1 * banksize];
         pputag[0x2000 / banksize] = Tag::Read | Tag::Write;
         pputag[0x2400 / banksize] = Tag::Read | Tag::Write;
         pputag[0x2800 / banksize] = Tag::Read | Tag::Write;
         pputag[0x2c00 / banksize] = Tag::Read | Tag::Write;
         break;
     case INES::Mirroring::Single:
-        ppumem[0x2000 / banksize] = nmt[0].data();
-        ppumem[0x2400 / banksize] = nmt[0].data();
-        ppumem[0x2800 / banksize] = nmt[0].data();
-        ppumem[0x2c00 / banksize] = nmt[0].data();
+        ppumem[0x2000 / banksize] = &nmt[0 * banksize];
+        ppumem[0x2400 / banksize] = &nmt[0 * banksize];
+        ppumem[0x2800 / banksize] = &nmt[0 * banksize];
+        ppumem[0x2c00 / banksize] = &nmt[0 * banksize];
         pputag[0x2000 / banksize] = Tag::Read | Tag::Write;
         pputag[0x2400 / banksize] = Tag::Read | Tag::Write;
         pputag[0x2800 / banksize] = Tag::Read | Tag::Write;
         pputag[0x2c00 / banksize] = Tag::Read | Tag::Write;
         break;
     case INES::Mirroring::Horizontal:
-        ppumem[0x2000 / banksize] = nmt[0].data();
-        ppumem[0x2400 / banksize] = nmt[0].data();
-        ppumem[0x2800 / banksize] = nmt[1].data();
-        ppumem[0x2c00 / banksize] = nmt[1].data();
+        ppumem[0x2000 / banksize] = &nmt[0 * banksize];
+        ppumem[0x2400 / banksize] = &nmt[0 * banksize];
+        ppumem[0x2800 / banksize] = &nmt[1 * banksize];
+        ppumem[0x2c00 / banksize] = &nmt[1 * banksize];
         pputag[0x2000 / banksize] = Tag::Read | Tag::Write;
         pputag[0x2400 / banksize] = Tag::Read | Tag::Write;
         pputag[0x2800 / banksize] = Tag::Read | Tag::Write;
         pputag[0x2c00 / banksize] = Tag::Read | Tag::Write;
         break;
     case INES::Mirroring::FourWay:
-        ppumem[0x2000 / banksize] = nmt[0].data();
-        ppumem[0x2400 / banksize] = nmt[1].data();
-        ppumem[0x2800 / banksize] = nmt[2].data();
-        ppumem[0x2c00 / banksize] = nmt[3].data();
+        ppumem[0x2000 / banksize] = &nmt[0 * banksize];
+        ppumem[0x2400 / banksize] = &nmt[1 * banksize];
+        ppumem[0x2800 / banksize] = &nmt[2 * banksize];
+        ppumem[0x2c00 / banksize] = &nmt[3 * banksize];
         pputag[0x2000 / banksize] = Tag::Read | Tag::Write;
         pputag[0x2400 / banksize] = Tag::Read | Tag::Write;
         pputag[0x2800 / banksize] = Tag::Read | Tag::Write;
