@@ -1,4 +1,5 @@
 
+#include <signal.h>
 #include "cpu.h"
 #include "bus.h"
 
@@ -205,7 +206,7 @@ name##_ABY: {                                    \
     }
 #define DECODE_INX(name, OP, code)               \
 name##_INX: {                                    \
-        operand = bus.Read8(cpu.PC++) + cpu.X;   \
+        operand = (u8)(bus.Read8(cpu.PC++) + cpu.X);   \
         if ((operand & 0xff) == 0xff) {          \
             u8 lo = bus.Read8(operand);          \
             u8 hi = bus.Read8(operand - 0xff);   \
@@ -241,14 +242,14 @@ name##_ZPA: {                                    \
     }
 #define DECODE_ZPX(name, OP, code)               \
 name##_ZPX: {                                    \
-        operand = bus.Read8(cpu.PC++) + cpu.X;   \
+        operand = (u8)(bus.Read8(cpu.PC++) + cpu.X);   \
         OP(operand)                              \
         code                                     \
         GOTO_NEXT(0)                             \
     }
 #define DECODE_ZPY(name, OP, code)               \
 name##_ZPY: {                                    \
-        operand = bus.Read8(cpu.PC++) + cpu.Y;   \
+        operand = (u8)(bus.Read8(cpu.PC++) + cpu.Y);   \
         OP(operand)                              \
         code                                     \
         GOTO_NEXT(0)                             \
@@ -336,8 +337,16 @@ u32 Interpreter::RunBlock(u32 max_cycles, bool use_ppu_cache) {
 
     // Control OPCODES
     DECODE_IMP(NOP, {})
-    DECODE_ZPA(BIT, CHECKED_READ_8, { cpu.SetNZ(value); cpu.SetFlag<CPU::Flags::V>((value & (1 << 6)) != 0); })
-    DECODE_ABS(BIT, CHECKED_READ_8, { cpu.SetNZ(value); cpu.SetFlag<CPU::Flags::V>((value & (1 << 6)) != 0); })
+    DECODE_ZPA(BIT, CHECKED_READ_8, {
+        cpu.SetFlag<CPU::Flags::Z>((cpu.A & (value)) == 0);
+        cpu.SetFlag<CPU::Flags::N>((value & (CPU::Flags::N)) != 0);
+        cpu.SetFlag<CPU::Flags::V>((value & (CPU::Flags::V)) != 0);
+    })
+    DECODE_ABS(BIT, CHECKED_READ_8, {
+        cpu.SetFlag<CPU::Flags::Z>((cpu.A & (value)) == 0);
+        cpu.SetFlag<CPU::Flags::N>((value & (CPU::Flags::N)) != 0);
+        cpu.SetFlag<CPU::Flags::V>((value & (CPU::Flags::V)) != 0);
+    })
     DECODE_IMM(BRK, NOOP, { cpu.pending_irq = true; goto END; })
     DECODE_IMP(RTS, {
         u16 addr = cpu.PopStack();
@@ -357,10 +366,10 @@ u32 Interpreter::RunBlock(u32 max_cycles, bool use_ppu_cache) {
     DECODE_IMP(TYA, { cpu.A = cpu.Y; cpu.SetNZ(cpu.A); })
     DECODE_IMP(TSX, { cpu.X = cpu.SP; cpu.SetNZ(cpu.X); })
     DECODE_IMP(TXS, { cpu.SP = cpu.X; })
-    DECODE_IMP(PHP, { cpu.PushStack(cpu.P); })
-    DECODE_IMP(PLP, { cpu.P = cpu.PopStack(); })
+    DECODE_IMP(PHP, { cpu.PushStack(cpu.P | CPU::Flags::B | CPU::Flags::U); })
+    DECODE_IMP(PLP, { cpu.P = cpu.PopStack() & ~(CPU::Flags::B | CPU::Flags::U); })
     DECODE_IMP(PHA, { cpu.PushStack(cpu.A); })
-    DECODE_IMP(PLA, { cpu.A = cpu.PopStack(); })
+    DECODE_IMP(PLA, { cpu.A = cpu.PopStack(); cpu.SetNZ(cpu.A); })
 
     DECODE_IMP(CLC, { cpu.SetFlag<CPU::Flags::C>(false); })
     DECODE_IMP(SEC, { cpu.SetFlag<CPU::Flags::C>(true); })
@@ -370,14 +379,14 @@ u32 Interpreter::RunBlock(u32 max_cycles, bool use_ppu_cache) {
     DECODE_IMP(SED, { cpu.SetFlag<CPU::Flags::D>(true); })
     DECODE_IMP(CLV, { cpu.SetFlag<CPU::Flags::V>(false); })
 
-    DECODE_REL(BNE, ((cpu.P & CPU::Flags::Z) == 0))
-    DECODE_REL(BEQ, ((cpu.P & CPU::Flags::Z) != 0))
-    DECODE_REL(BCC, ((cpu.P & CPU::Flags::C) == 0))
-    DECODE_REL(BCS, ((cpu.P & CPU::Flags::C) != 0))
-    DECODE_REL(BPL, ((cpu.P & CPU::Flags::N) == 0))
-    DECODE_REL(BMI, ((cpu.P & CPU::Flags::N) != 0))
-    DECODE_REL(BVC, ((cpu.P & CPU::Flags::V) == 0))
-    DECODE_REL(BVS, ((cpu.P & CPU::Flags::V) != 0))
+    DECODE_REL(BNE, ((cpu.P & CPU::Flags::Z) != CPU::Flags::Z))
+    DECODE_REL(BEQ, ((cpu.P & CPU::Flags::Z) == CPU::Flags::Z))
+    DECODE_REL(BCC, ((cpu.P & CPU::Flags::C) != CPU::Flags::C))
+    DECODE_REL(BCS, ((cpu.P & CPU::Flags::C) == CPU::Flags::C))
+    DECODE_REL(BPL, ((cpu.P & CPU::Flags::N) != CPU::Flags::N))
+    DECODE_REL(BMI, ((cpu.P & CPU::Flags::N) == CPU::Flags::N))
+    DECODE_REL(BVC, ((cpu.P & CPU::Flags::V) != CPU::Flags::V))
+    DECODE_REL(BVS, ((cpu.P & CPU::Flags::V) == CPU::Flags::V))
     DECODE_ABS(JSR, NOOP, {
         cpu.PushStack((cpu.PC-1) >> 8 );
         cpu.PushStack((cpu.PC-1) & 0xff );
@@ -427,8 +436,6 @@ u32 Interpreter::RunBlock(u32 max_cycles, bool use_ppu_cache) {
         u8 carry_out;
         u8 result = __builtin_addcb(cpu.A, value, cpu.P & 1, &carry_out);
         cpu.SetFlag<CPU::Flags::C>(carry_out);
-//        u16 result = (u16)cpu.A + (u16)value + ((cpu.P & CPU::Flags::C) != 0);
-//        cpu.SetFlag<CPU::Flags::C>(result > 0xFF);
         cpu.SetFlag<CPU::Flags::V>((~(cpu.A ^ value) & (cpu.A ^ result) & 0x80) != 0);
         cpu.SetNZ(result);
         cpu.A = (u8)result;
@@ -471,12 +478,10 @@ u32 Interpreter::RunBlock(u32 max_cycles, bool use_ppu_cache) {
         COMPARE_OP(cpu.A)
     })
     ALU_OP(SBC, {
-//        u16 result = (u16)cpu.A + (u16)(value^0xff) + ((cpu.P & CPU::Flags::C) != 0);
-//        cpu.SetFlag<CPU::Flags::C>(result > 0xFF);
         uint8_t carry_out;
         uint8_t result = __builtin_addcb(cpu.A, value ^ 0xff, cpu.P & 1, &carry_out);
         cpu.SetFlag<CPU::Flags::C>(carry_out);
-        cpu.SetFlag<CPU::Flags::V>((~(cpu.A ^ value) & (cpu.A ^ result) & 0x80) != 0);
+        cpu.SetFlag<CPU::Flags::V>((~(cpu.A ^ (value ^ 0xff)) & (cpu.A ^ result) & 0x80) != 0);
         cpu.SetNZ(result);
         cpu.A = (u8)result;
     })

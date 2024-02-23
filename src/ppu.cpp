@@ -97,7 +97,7 @@ void PPU::WriteRegister(u16 addr, u8 value) {
             IncrementV();
         } else {
             if (scanline >= 240 || !RenderingEnabled()) {
-                bus.WriteVRAM8(v, value);
+                bus.WriteVRAM8(v & 0x3FFF, value);
                 // TODO - PPU state updates happen a few cycles later
                 // but we should be fine to just update immediately
                 IncrementV();
@@ -121,20 +121,27 @@ void PPU::OAMDMA() {
 
 void PPU::CatchUp() {
     // Before running apply any cached updates
-    while (!bus.ppu_register_cache.empty()) {
-        auto& item = bus.ppu_register_cache.front();
-        if (item.is_write) {
-            WriteRegister(item.addr, item.value);
-        } else {
-            // This is a write cache, so right now we don't add reads.
-            // Later if we start scanning for reading $2002 for clearing
-            // the write toggle (IE: the value read from ppustatus is unused)
-            // then we could cache that read.
-            // ReadRegister(item.addr);
-        }
-        bus.ppu_register_cache.pop();
-    }
+//    u16 temp = scanline;
+//    scanline = SCANLINE_VBLANK_START;
+//    while (!bus.ppu_register_cache.empty()) {
+//        auto& item = bus.ppu_register_cache.front();
+//        if (item.is_write) {
+//            WriteRegister(item.addr, item.value);
+//        } else {
+//            // This is a write cache, so right now we don't add reads.
+//            // Later if we start scanning for reading $2002 for clearing
+//            // the write toggle (IE: the value read from ppustatus is unused)
+//            // then we could cache that read.
+//            // ReadRegister(item.addr);
+//        }
+//        bus.ppu_register_cache.pop();
+//    }
+//    scanline = temp;
+    u16 old_scanline = scanline;
+    u16 old_cycle = cycle;
+
     s64 cycles_to_run = timing.cycle_count - current_cycle;
+    auto orig_cycles = cycles_to_run;
     while (cycles_to_run > 0) {
         // We can't use the fast scanline impl if we aren't on cycle 0
         if (cycles_to_run > CYCLES_PER_SCANLINE && cycle == 0) {
@@ -142,15 +149,18 @@ void PPU::CatchUp() {
         } else {
             Tick();
         }
-        if (cycle == 341) {
+        u16 end_cycle = (scanline == SCANLINE_PRERENDER && !even_frame) ? 340 : 341;
+        if (cycle == end_cycle) {
             cycle = 0;
             scanline++;
         }
         if (scanline > SCANLINE_PRERENDER) {
             scanline = 0;
+            even_frame = !even_frame;
         }
         cycles_to_run = timing.cycle_count - current_cycle;
     }
+    SPDLOG_WARN("Catching up PPU cycles: {} old scanline: {} old cycle: {} new scanline: {} new cycle: {}", orig_cycles / 4, old_scanline, old_cycle, scanline, cycle);
 }
 
 void PPU::Tick() {

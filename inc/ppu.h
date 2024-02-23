@@ -24,7 +24,7 @@ public:
     void Tick();
     void OAMDMA();
 
-    bool even_frame{};
+    bool even_frame{true};
 
 /*
 7  bit  0
@@ -136,7 +136,7 @@ VSO. ....
     }
 
     // Internal scanline cycle count
-    u16 scanline{};
+    u16 scanline{SCANLINE_VBLANK_START};
     u16 cycle{};
 
 private:

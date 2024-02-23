@@ -37,7 +37,7 @@ void Scheduler::AddCPUCycles(s64 cycles) {
         if (queue.empty())
             break;
     }
-    cycle_count += cycles;
+    cycle_count = next_cycle_count;
     frame_count = cycle_count / NTSC_CLOCK_PER_FRAME;
 }
 
