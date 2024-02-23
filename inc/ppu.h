@@ -22,6 +22,7 @@ public:
 
     void CatchUp();
     void Tick();
+    void OAMDMA();
 
     bool even_frame{};
 
@@ -119,8 +120,6 @@ VSO. ....
     PPUMASK mask{};
     PPUSTATUS status{};
 
-    u8 oamaddr{};
-
     [[nodiscard]] inline bool RenderingEnabled() const {
         return mask.bg_enable || mask.sp_enable;
     }
@@ -142,6 +141,8 @@ VSO. ....
 
 private:
 
+    u8 oam_addr{};
+
     bool w{}; // 1 bit - write toggle
     u16 v{}; // 15 bits - vram addr
     u16 t{}; // 15 bits - temporary vram addr
@@ -149,15 +150,17 @@ private:
 
     u8 latch{};
 
-    void OAMDMA();
     void RunFastScanline();
-    void OAMEvaluation();
+    void FastScanlineRender();
+    void FastOAMEvaluation();
     void IncrementV();
     inline void IncrementHScroll();
     inline void IncrementVScroll();
     inline void CopyHScrollToV();
 
-    std::array<u8, 256> secondaryOAM{};
+    bool spriteZeroFound{false};
+    std::array<u8, 32> secondaryOAM{};
+    std::array<u8, 256> OAM{};
     std::array<u8, 0x20> palette{};
 
     Bus& bus;
@@ -174,10 +177,16 @@ private:
     u16* rendering_to = pixel_buffer3.data();
     std::array<u16*, 3> buffers = {pixel_buffer1.data(), pixel_buffer2.data(), pixel_buffer3.data()};
 
-    std::array<u16, 8 * 32> scanline_sp_pixel_buffer{};
+    static constexpr u8 SPRITE_ZERO_TAG = 1 << 2;
+    std::array<u8, 8 * 32> scanline_sp_palette_buffer{};
+    std::array<u8, 8 * 32> scanline_sp_attribute{};
     std::array<u16, 8 * 32> scanline_bg_pixel_buffer{};
 
     u8 read_buffer{};
+
+    static constexpr int SCANLINE_VBLANK_START = 240;
+    static constexpr int SCANLINE_FRAME_START = 0;
+    static constexpr int SCANLINE_PRERENDER = 261;
 };
 
 

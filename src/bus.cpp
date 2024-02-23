@@ -5,7 +5,9 @@
 #include "ines.h"
 
 
-Bus::Bus(const INES& header, std::span<u8> prg, std::span<u8> chr, PPU& ppu) : ppu(ppu) {
+Bus::Bus(const INES& header, std::span<u8> prg, std::span<u8> chr, PPU& ppu,
+         Controller& controller1, Controller& controller2)
+        : ppu(ppu), controller1(controller1) , controller2(controller2) {
     fakemmu.InitCPUMap(prg);
     fakemmu.InitPPUMap(chr, header);
 //    InitFakeMMU(prg, chr);

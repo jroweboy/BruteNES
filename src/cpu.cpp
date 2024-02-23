@@ -1,8 +1,15 @@
 
-#include <signal.h>
-
 #include "cpu.h"
 #include "bus.h"
+
+#define TRACE_LOG() \
+    SPDLOG_INFO("${:4X}: {} ${:X} a${:2x} x${:2x} y${:2x} SP${:2x} P${:2x} -> {} @ ${:4X}", \
+                prev_pc, inst_name_lut[prev_idx], operand, \
+                cpu.A, cpu.X, cpu.Y, cpu.SP, cpu.P, \
+                inst_name_lut[inst_idx], cpu.PC);
+
+//#undef TRACE_LOG
+//#define TRACE_LOG() ;
 
 
 void CPU::Reset() {
@@ -78,15 +85,6 @@ static std::array<std::string, 256> inst_name_lut = {{
 }};
 
 
-#define TRACE_LOG() \
-    SPDLOG_INFO("${:4X}: {} ${:X} a${:2x} x${:2x} y${:2x} SP${:2x} P${:2x} -> {} @ ${:4X}", \
-                prev_pc, inst_name_lut[prev_idx], operand, \
-                cpu.A, cpu.X, cpu.Y, cpu.SP, cpu.P, \
-                inst_name_lut[inst_idx], cpu.PC);
-
-#undef TRACE_LOG
-#define TRACE_LOG() ;
-
 // I'm so sorry.
 #define NOOP(inner) ;
 #define NOOP8(inner) u8 value = inner;
@@ -120,8 +118,11 @@ static std::array<std::string, 256> inst_name_lut = {{
             /*the only write we can't support is starting dmc*/ \
             if ((value & 0x10) && inner == 0x4015) { \
                 goto MMIO;                         \
-            }                                      \
-            bus.WriteAPURegister(value, inner, true); \
+            } else if (inner == 0x4014) { \
+                oam_value = value; \
+                goto OAMDMA;                          \
+            }                                     \
+            bus.WriteAPURegister(inner, value, true); \
         } else {                            \
             goto MMIO;                      \
         }                                   \
@@ -257,7 +258,7 @@ u32 Interpreter::RunBlock(u32 max_cycles, bool use_ppu_cache) {
 
     u32 current_cycles = 0;
     u16 operand;
-//    u16 result;
+    u8 oam_value;
     u8 inst_idx{};
 
 /*
@@ -628,6 +629,27 @@ DECODE_ZPX(name, CHECKED_READ_8, code)
     ALU_OP(DCP, {})
     ALU_OP(ISC, {})
     ALU_OP(RLA, {})
+
+OAMDMA:
+    // First determine if we have enough cycles left to run oam dma
+    // before the next breakpoint. DMC DMA is allowed to interrupt OAM DMA
+    // so we can fall back to cycle accurate to resolve that conflict.
+    // TODO actually add the single stepping cpu and remove the current_cycles check here
+    if ((use_ppu_cache || current_cycles == 0) && (max_cycles - current_cycles) > 514) {
+        u8 align_delay = timing.IsGetCycle() ? 0 : 1;
+        for (int i = 0; i < 256; i++) {
+            u8 spr;
+            // TODO OAMDMA can't actually read from registers so it should access the backing
+            // memory directly and ignore MMIO
+            if (!bus.CheckedRead8((oam_value << 8) + i, spr)) {
+                spr = bus.OpenBus();
+            }
+            bus.WritePPURegister(0x2004, spr, use_ppu_cache);
+        }
+        current_cycles += 512 + align_delay;
+        GOTO_NEXT(0)
+    }
+    // Fallthrough to MMIO so we step single stepping
 
 MMIO:
     // We hit an MMIO register and the PPU isn't caught up,

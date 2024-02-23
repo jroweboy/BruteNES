@@ -72,6 +72,7 @@ FetchContent_MakeAvailable(
 add_executable(${PROJECT_NAME}
     inc/brutenes.h
     inc/bus.h
+    inc/controller.h
     inc/common.h
     inc/cpu.h
     inc/ines.h
@@ -81,6 +82,7 @@ add_executable(${PROJECT_NAME}
 
     src/brutenes.cpp
     src/bus.cpp
+    src/controller.cpp
     src/cpu.cpp
     src/ines.cpp
     src/main.cpp

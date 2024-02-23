@@ -44,6 +44,10 @@ public:
 
     void AddCPUCycles(s64 cycle_count);
 
+    inline bool IsGetCycle() const {
+        return ((cycle_count / 12) & 1) == 0;
+    }
+
     u64 cycle_count{};
 
     u32 frame_count{};

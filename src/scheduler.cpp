@@ -37,10 +37,10 @@ void Scheduler::AddCPUCycles(s64 cycles) {
         if (queue.empty())
             break;
     }
-    cycle_count = next_cycle_count;
+    cycle_count += cycles;
     frame_count = cycle_count / NTSC_CLOCK_PER_FRAME;
 }
 
-bool CompareInterrupt(Interrupt a, Interrupt b) {
+bool CompareInterrupt(const Interrupt& a, const Interrupt& b) {
     return a.cycles > b.cycles;
 }

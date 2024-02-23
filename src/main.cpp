@@ -125,16 +125,48 @@ static std::unique_ptr<EmuThread> emu;
     return 0;
 }
 
+static int frame_count = 0;
 int SDL_AppIterate(void) {
     frontend->DrawFrame(emu->GetFrame());
-
-//    SPDLOG_WARN("time taken {} FPS {}", emu->nes->last_timer,
-//                1000000000.0 / emu->nes->last_timer);
+//    frame_count = (frame_count+1) % 60;
+//    if (frame_count == 0) {
+//        SPDLOG_WARN("FPS {}",
+//                    1000000000.0 / emu->nes->last_timer);
+//    }
     return 0;
+}
+
+constexpr BruteNES::Button KeyToButtonMapping(const SDL_Event* event) {
+    switch (event->key.keysym.sym) {
+
+    case SDLK_LEFT:
+        return BruteNES::Button::LEFT;
+    case SDLK_RIGHT:
+        return BruteNES::Button::RIGHT;
+    case SDLK_UP:
+        return BruteNES::Button::UP;
+    case SDLK_DOWN:
+        return BruteNES::Button::DOWN;
+    case SDLK_a:
+        return BruteNES::Button::B;
+    case SDLK_s:
+        return BruteNES::Button::A;
+    case SDLK_q:
+        return BruteNES::Button::SELECT;
+    case SDLK_w:
+        return BruteNES::Button::START;
+    }
+    return (BruteNES::Button)0;
 }
 
 int SDL_AppEvent(const SDL_Event *event) {
     switch (event->type) {
+    case SDL_EVENT_KEY_DOWN:
+        emu->PressController(0, KeyToButtonMapping(event));
+        return 0;
+    case SDL_EVENT_KEY_UP:
+        emu->ReleaseController(0, KeyToButtonMapping(event));
+        return 0;
     case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
         emu->Stop();
         return 1;

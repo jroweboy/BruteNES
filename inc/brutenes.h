@@ -14,9 +14,16 @@
 #include "ines.h"
 #include "ppu.h"
 #include "scheduler.h"
+#include "controller.h"
+
+class EmuThread;
+
 
 class BruteNES {
 public:
+    // Reexport the controll button typedef
+    using Button = Controller::Button;
+
     BruteNES() = delete;
     static std::unique_ptr<BruteNES> Init(std::vector<u8>&& romdata);
 
@@ -27,11 +34,8 @@ public:
 
     u16* GetFrame();
 
-    std::atomic<bool> stop_signal{};
-    bool paused = false;
-    std::mutex pause_mutex{};
-    std::condition_variable pause_cv{};
-    long long last_timer{};
+    Controller controller1;
+    Controller controller2;
 
 private:
     explicit BruteNES(std::vector<u8>&& rom, INES header, std::span<u8> prg, std::span<u8> chr);
@@ -44,6 +48,16 @@ private:
     std::vector<u8> rom;
     // When paused, keep the previous frame around so we can keep redrawing it
     u16* prev_frame{};
+
+    std::atomic<bool> stop_signal{};
+    bool paused = false;
+    std::mutex pause_mutex{};
+    std::condition_variable pause_cv{};
+    long long last_timer{};
+
+    std::mutex controller_mutex{};
+friend class EmuThread;
+friend class Controller;
 };
 
 // Wraps the emu instance in a thread since macos still doesn't have jthread
@@ -54,8 +68,10 @@ public:
     void Start();
     void Pause();
     void Stop();
+    void PressController(u8 controller, BruteNES::Button button) const;
+    void ReleaseController(u8 controller, BruteNES::Button button) const;
 
-    u16* GetFrame() {
+    [[nodiscard]] u16* GetFrame() const {
         return nes->GetFrame();
     }
 

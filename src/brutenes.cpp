@@ -6,7 +6,10 @@
 #include "ines.h"
 
 BruteNES::BruteNES(std::vector<u8>&& filedata, INES header, std::span<u8> prg, std::span<u8> chr)
-    : bus(header, prg, chr, ppu), cpu(bus), ppu(bus, timing), header(header), timing(cpu), rom(filedata) {}
+        : bus(header, prg, chr, ppu, controller1, controller2), cpu(bus, timing),
+        ppu(bus, timing), header(header), timing(cpu), rom(filedata),
+        controller1(*this), controller2(*this)
+    {}
 
 std::unique_ptr<BruteNES> BruteNES::Init(std::vector<u8>&& filedata) {
     auto ines = INES::ParseHeader(std::span(filedata).subspan(0, 0x10));
@@ -84,6 +87,7 @@ u16* BruteNES::GetFrame() {
 }
 
 void BruteNES::RunLoop() {
+    using namespace std::chrono_literals;
     ColdBoot();
     while (!stop_signal.load(std::memory_order_acquire)) {
         if (paused) {
@@ -96,6 +100,7 @@ void BruteNES::RunLoop() {
         RunFrame();
         auto t2 = Clock::now();
         last_timer = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
+        std::this_thread::sleep_for(16667us - (t2 - t1));
     }
 }
 
@@ -127,4 +132,26 @@ std::unique_ptr<EmuThread> EmuThread::Init(std::vector<u8>&& data) {
         return nullptr;
     }
     return std::unique_ptr<EmuThread>(new EmuThread(std::move(nes)));
+}
+
+void EmuThread::PressController(u8 controller, BruteNES::Button button) const {
+    while (true) {
+        // try to lock mutex to modify 'job_shared'
+        if (nes->controller_mutex.try_lock()) {
+            nes->controller1.SetButton(button);
+            nes->controller_mutex.unlock();
+            return;
+        }
+    }
+}
+
+void EmuThread::ReleaseController(u8 controller, BruteNES::Button button) const {
+    while (true) {
+        // try to lock mutex to modify 'job_shared'
+        if (nes->controller_mutex.try_lock()) {
+            nes->controller1.ReleaseButton(button);
+            nes->controller_mutex.unlock();
+            return;
+        }
+    }
 }

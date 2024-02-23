@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "common.h"
+#include "controller.h"
 #include "ppu.h"
 #include "virtmem.h"
 
@@ -22,7 +23,8 @@ public:
         bool is_write;
     };
 
-    Bus(const INES& header, std::span<u8> prg, std::span<u8> chr, PPU& ppu);
+    Bus(const INES& header, std::span<u8> prg, std::span<u8> chr, PPU& ppu,
+        Controller& controller1, Controller& controller2);
 
     // TODO better open bus handling
     inline u8 OpenBus() const {
@@ -126,7 +128,11 @@ public:
 
     inline u8 ReadAPURegister(u16 addr) {
         if (addr == 0x4016 || addr == 0x4017) {
-            // Joy read unimplemented
+            if (addr & 1) {
+                return controller2.ReadRegister(addr);
+            } else {
+                return controller1.ReadRegister(addr);
+            }
             return 0;
         }
         // Unimplemented $4015 for now
@@ -134,7 +140,11 @@ public:
     }
     inline void WriteAPURegister(u16 addr, u8 value, bool cache) {
         if (addr == 0x4016 || addr == 0x4017) {
-            // Joy strobe unimplemented
+            if (addr & 1) {
+                controller2.WriteRegister(addr, value);
+            } else {
+                controller1.WriteRegister(addr, value);
+            }
         }
         // Unimplemented APU writes
     }
@@ -152,6 +162,8 @@ private:
     //HostVirtualMemory hostmmu{};
     FakeVirtualMemory fakemmu{};
     PPU& ppu;
+    Controller& controller1;
+    Controller& controller2;
 
     // CPU memory cpumem backing
 //    std::span<u8> ciram;
