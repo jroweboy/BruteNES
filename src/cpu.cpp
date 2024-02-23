@@ -9,8 +9,8 @@
                 cpu.A, cpu.X, cpu.Y, cpu.SP, cpu.P, \
                 inst_name_lut[inst_idx], cpu.PC);
 
-//#undef TRACE_LOG
-//#define TRACE_LOG() ;
+#undef TRACE_LOG
+#define TRACE_LOG() ;
 
 
 void CPU::Reset() {

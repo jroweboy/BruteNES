@@ -121,22 +121,22 @@ void PPU::OAMDMA() {
 
 void PPU::CatchUp() {
     // Before running apply any cached updates
-//    u16 temp = scanline;
-//    scanline = SCANLINE_VBLANK_START;
-//    while (!bus.ppu_register_cache.empty()) {
-//        auto& item = bus.ppu_register_cache.front();
-//        if (item.is_write) {
-//            WriteRegister(item.addr, item.value);
-//        } else {
-//            // This is a write cache, so right now we don't add reads.
-//            // Later if we start scanning for reading $2002 for clearing
-//            // the write toggle (IE: the value read from ppustatus is unused)
-//            // then we could cache that read.
-//            // ReadRegister(item.addr);
-//        }
-//        bus.ppu_register_cache.pop();
-//    }
-//    scanline = temp;
+    u16 temp = scanline;
+    scanline = SCANLINE_VBLANK_START;
+    while (!bus.ppu_register_cache.empty()) {
+        auto& item = bus.ppu_register_cache.front();
+        if (item.is_write) {
+            WriteRegister(item.addr, item.value);
+        } else {
+            // This is a write cache, so right now we don't add reads.
+            // Later if we start scanning for reading $2002 for clearing
+            // the write toggle (IE: the value read from ppustatus is unused)
+            // then we could cache that read.
+            // ReadRegister(item.addr);
+        }
+        bus.ppu_register_cache.pop();
+    }
+    scanline = temp;
     u16 old_scanline = scanline;
     u16 old_cycle = cycle;
 
@@ -160,7 +160,7 @@ void PPU::CatchUp() {
         }
         cycles_to_run = timing.cycle_count - current_cycle;
     }
-    SPDLOG_WARN("Catching up PPU cycles: {} old scanline: {} old cycle: {} new scanline: {} new cycle: {}", orig_cycles / 4, old_scanline, old_cycle, scanline, cycle);
+//    SPDLOG_WARN("Catching up PPU cycles: {} old scanline: {} old cycle: {} new scanline: {} new cycle: {}", orig_cycles / 4, old_scanline, old_cycle, scanline, cycle);
 }
 
 void PPU::Tick() {
@@ -170,6 +170,10 @@ void PPU::Tick() {
     if (scanline == SCANLINE_FRAME_START && cycle == 1) {
         status.vblank = 0;
         status.sp_zero = 0;
+    }
+    // HACK set sprite zero to mario 1 estimate
+    if (scanline == 31 && cycle == 100) {
+        status.sp_zero = 1;
     }
     // At dot 256 of each scanline
     //
